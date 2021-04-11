@@ -16,3 +16,6 @@ library(stargazer)
 ```{r, child='./source/feature_engineering.Rmd'}
 ```
 
+```{r, child='./source/analysis.Rmd'}
+```
+
