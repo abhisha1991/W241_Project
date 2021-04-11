@@ -1,6 +1,12 @@
-# Experiments and Causality: Gender and Racial Bias (U.S. Coast Guards)
+# Experiments and Causality: W241 Final Project
 
+# Gender and Racial Bias (U.S. Coast Guards)
 
+## Team Members
+
+1. Hanyu Dai
+2. Brendan Mattina
+3. Abhi Sharma
 
 
 ## Links and Resources
