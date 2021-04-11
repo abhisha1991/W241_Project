@@ -1,2 +1,13 @@
 ## Feature Engineering
 
+```{r}
+library(data.table)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+``` 
+
+```{r}
+d <- fread("data.csv")
+```
+
