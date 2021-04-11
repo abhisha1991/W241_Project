@@ -1,0 +1,18 @@
+---
+title: 'Experiments and Causality: W241 Final Project Coast Guards'
+author: 'Hanyu, Brendan and Abhi'
+date: 4/2021
+output: github_document
+---
+
+```{r load packages, warning=FALSE}
+library(data.table)
+library(sandwich)
+library(lmtest)
+library(knitr)
+library(stargazer)
+```
+
+```{r, child='./source/feature_engineering.Rmd'}
+```
+
