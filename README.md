@@ -18,7 +18,25 @@ Advisor: Douglas Alex Hughes (Professor, U.C. Berkeley)
  
 ## High Level Experiment Design
 
-The experiment uses a "Differences in Differences" (DiD) design to answer the causal question of gender/racial bias. There are 2 genders (male and female) and 2 races (white and black) that are chosen for 
+The experiment uses a "Differences in Differences" (DiD) design to answer the causal question of gender/racial bias. There are 2 genders (male and female) and 2 races (white and black) that are chosen as "levels" for this experiment. These levels are interacted with each other to generate a multi factor designed experiment that uses 4 subjects as treatment conditions. For example, interacting gender and race gives us: 
+
+1. White Male
+2. Black Male
+3. White Female
+4. Black Female 
+
+To scope the complexity of the design and to keep the survey short, participants are shown 6 sets of resumes for comparison. Each set contains 2 resumes. Within each set shown to a participant, they are required to compare resume summaries of 2 people.
+
+For the control group, the 2 resumes "in the set" are shown without identifying information such as name, gender and race. The control group aims to establish the difference in the perceived quality of the resume summaries shown to the respondent.
+
+![image](https://user-images.githubusercontent.com/10823325/114312083-3935ae00-9aa6-11eb-9f28-69dddb5c3576.png)
+
+For the treatment group, the 2 resumes "in the set" are shown with identifying information (gender and race). This is captured by administering a treatment - such as the person's name - in the heading of the resume summary. For example, the treatment group receives a set of resume summaries - one for Bradley Meyer, another for Reginald Washington.
+
+![image](https://user-images.githubusercontent.com/10823325/114311896-7b122480-9aa5-11eb-9905-9a411167ccb5.png)
+
+Ultimately, the average treatment effect is captured when we take the difference between the control and treatment group (for each resume set):
+![image](https://user-images.githubusercontent.com/10823325/114312022-0c819680-9aa6-11eb-80cf-2e356174e36c.png)
 
 ## Pilot Data
 
