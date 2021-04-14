@@ -1,13 +1,219 @@
 ## Feature Engineering
 
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 library(data.table)
 library(lmtest)
 library(sandwich)
 library(stargazer)
+library(dplyr)
 ``` 
 
 ```{r}
 d <- fread("data.csv")
+
+head(d)
+```
+
+```{r}
+# display number of columns
+length(d[0])
+```
+
+```{r}
+# ResponseID is our primary key for the table as it is unique for each row and is guaranteed to be present
+nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
+```
+
+
+```{r}
+d[, .(count=.N), by = list(Finished)]
+```
+
+```{r}
+d[, .(count=.N), by = list(Progress)]
+```
+
+
+```{r Utility Functions}
+# gets a row by the field "Name" in dataframe "data"
+getRowByName <- function(name, data) {
+  return (data[data$Name == name, ]) 
+}
+
+# gets a row by the field "ResponseID" in dataframe "data"
+getRowByResponseID <- function(responseId, data) {
+  return (data[data$ResponseID == responseId, ]) 
+}
+
+# are all treatment questions NA (condition for participant being in control group)
+areAllTreatmentQNA <- function(data, rowNum) {
+  return (is.na(data[rowNum]$TreatmentQ1) & is.na(d[rowNum]$TreatmentQ2) & is.na(d[rowNum]$TreatmentQ3) &   is.na(d[rowNum]$TreatmentQ4) & is.na(d[rowNum]$TreatmentQ5) & is.na(d[rowNum]$TreatmentQ6))
+}
+
+# are all control questions NA (condition for participant being in treatment group)
+areAllControlQNA <- function(data, rowNum) {
+  return (is.na(data[rowNum]$ControlQ1) & is.na(d[rowNum]$ControlQ2) & is.na(d[rowNum]$ControlQ3) &   is.na(d[rowNum]$ControlQ4) & is.na(d[rowNum]$ControlQ5) & is.na(d[rowNum]$ControlQ6))
+}
+
+# gets number of treatment columns that are NA 
+getSumTreatmentQNA <- function(data, rowNum) {
+  
+  someTreatmentNA = c(is.na(data[rowNum]$TreatmentQ1), is.na(d[rowNum]$TreatmentQ2),  is.na(d[rowNum]$TreatmentQ3), is.na(d[rowNum]$TreatmentQ4), is.na(d[rowNum]$TreatmentQ5), is.na(d[rowNum]$TreatmentQ6))
+  
+  return (sum(someTreatmentNA))
+}
+
+# gets number of control columns that are NA 
+getSumControlQNA <- function(data, rowNum) {
+  
+  someControlNA = c(is.na(data[rowNum]$ControlQ1), is.na(d[rowNum]$ControlQ2), is.na(d[rowNum]$ControlQ3),   is.na(d[rowNum]$ControlQ4), is.na(d[rowNum]$ControlQ5), is.na(d[rowNum]$ControlQ6))
+  
+  return (sum(someControlNA))
+}
+
+# if all 12 columns of treatment and control are NA, then the row is invalid
+# represents a likely non-complier (never taker)
+isInvalidRow <- function(data, rowNum) {
+  return(getSumControlQNA(data, rowNum) + getSumTreatmentQNA(data, rowNum) == 12)
+}
+
+# if person was assigned to either treatment or control, but didn't end up answering all questions
+isAttritedRow <- function(data, rowNum) {
+  cols = getSumControlQNA(data, rowNum) 
+  result = (cols < 6 & cols > 0)
+  if (result) {
+    return (result)
+  }
+  
+  cols = getSumTreatmentQNA(data, rowNum)
+  result = (cols < 6 & cols > 0)
+  return (result | isInvalidRow(data, rowNum))
+}
+
+# we cannot have NA in both treatment and control
+isInvalidTreatmentAssignment <- function(data, rowNum) {
+  controlNa = getSumControlQNA(data, rowNum) 
+  treatmentNa = getSumTreatmentQNA(data, rowNum)
+  return ((controlNa > 0 & controlNa < 6) & (treatmentNa > 0 & treatmentNa < 6))
+}
+```
+
+
+```{r}
+nameResumeBinding <- data.table(
+  Name  = c("Bradley Meyer", "Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson"),
+  Race = c("White", "Black", "White", "Black"),
+  Gender = c("Male", "Male", "Female", "Female"),
+  RaceGender = c("WM", "BM", "WF", "BF"),
+  ResumeId   = c(1, 2, 3, 4)
+)
+```
+
+```{r}
+treatmentBinding <- data.table(
+  LeftName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
+  RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
+  TreatmentCol = c("TreatmentQ1", "TreatmentQ2", "TreatmentQ3", "TreatmentQ4", "TreatmentQ5", "TreatmentQ6")
+)
+```
+
+```{r}
+treatmentMetadata <- data.table(treatmentBinding)
+n <- nrow(treatmentMetadata)
+
+# fill dummy values to create column names
+for (i in 1:n) {
+  treatmentMetadata$LeftPersonRace = "test"
+  treatmentMetadata$LeftPersonGender = "test"
+  treatmentMetadata$LeftPersonRaceGender = "test"
+  treatmentMetadata$LeftPersonResumeId = "test"
+   
+  treatmentMetadata$RightPersonRace = "test"
+  treatmentMetadata$RightPersonGender = "test"
+  treatmentMetadata$RightPersonRaceGender = "test"
+  treatmentMetadata$RightPersonResumeId = "test"
+}
+
+# iterate through left name and fill left person metadata
+for (i in 1:n) {
+  row <- getRowByName(treatmentMetadata[i]$LeftName, nameResumeBinding)
+   
+  treatmentMetadata[i]$LeftPersonRace = row$Race
+  treatmentMetadata[i]$LeftPersonGender = row$Gender
+  treatmentMetadata[i]$LeftPersonRaceGender = row$RaceGender
+  treatmentMetadata[i]$LeftPersonResumeId = row$ResumeId
+}
+
+# iterate through right name and fill right person metadata
+for (i in 1:n) {
+  row <- getRowByName(treatmentMetadata[i]$RightName, nameResumeBinding)
+   
+  treatmentMetadata[i]$RightPersonRace = row$Race
+  treatmentMetadata[i]$RightPersonGender = row$Gender
+  treatmentMetadata[i]$RightPersonRaceGender = row$RaceGender
+  treatmentMetadata[i]$RightPersonResumeId = row$ResumeId
+}
+```
+
+```{r}
+controlBinding <- data.table(
+  LeftResumeId  = c(1, 1, 1, 3, 2, 3),
+  RightResumeId = c(2, 3, 4, 2, 4, 4),
+  ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
+)
+```
+
+```{r}
+# treatment and control assignment
+n <- nrow(d)
+n=5
+
+# have valid columns for treatment assignment and attrition
+d$TreatmentAssignment = NA
+d$IsAttrited = NA
+
+for (i in 1:n) {
+  # row <- getRowByResponseID(d[i]$ResponseID, d)
+  
+  control <- areAllTreatmentQNA(d, i)
+  treatment <- areAllControlQNA(d, i)
+  isInvalid <- isInvalidRow(d, i)
+  isAttrited <- isAttritedRow(d, i)
+  isInvalidTreatmentAssigned <- isInvalidTreatmentAssignment(d, i)
+  
+  # print(c(control, treatment, isInvalid, isAttrited, isInvalidTreatmentAssigned))
+  if (isInvalid | isInvalidTreatmentAssigned) {
+    
+    sprintf("Row %s is invalid", i)
+    d[i]$TreatmentAssignment = NA
+    
+  }
+  else {
+    
+    if (treatment & control) {
+      print("Both treatment and control are true! This should never happen!")
+    }
+    
+    d[i]$TreatmentAssignment = treatment  
+  }
+  
+  d[i]$IsAttrited = isAttrited
+  
+  # special case, if we find attrition, then we need to re-assign treatment  
+  if (isAttrited) {
+    
+    numNa = getSumTreatmentQNA(d, i)
+    treatment = numNa > 0 & numNa < 6    
+    d[i]$TreatmentAssignment = treatment      
+  
+  }
+
+  
+}
+
+```
+
+```{r}
+head(d)
 ```
 
