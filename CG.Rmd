@@ -5,7 +5,7 @@ date: 4/2021
 output: github_document
 ---
 
-```{r load packages, warning=FALSE}
+```{r load packages, warning=FALSE, message=FALSE}
 library(data.table)
 library(sandwich)
 library(lmtest)

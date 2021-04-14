@@ -1,40 +1,83 @@
+Experiments and Causality: W241 Final Project Coast Guards
+================
+Hanyu, Brendan and Abhi
+4/2021
+
+``` r
+library(data.table)
+library(sandwich)
+library(lmtest)
+library(knitr)
+library(stargazer)
+```
+
 ## Feature Engineering
 
-```{r, message=FALSE, warning=FALSE}
+``` r
 library(data.table)
 library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
-``` 
+```
 
-```{r}
+``` r
 d <- fread("data.csv")
 
 # head(d)
 ```
 
-```{r}
+``` r
 # display number of columns
 length(d[0])
 ```
 
-```{r}
+    ## [1] 124
+
+``` r
 # ResponseID is our primary key for the table as it is unique for each row and is guaranteed to be present
 nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
 ```
 
+    ## [1] TRUE
 
-```{r}
+``` r
 d[, .(count=.N), by = list(Finished)]
 ```
 
-```{r}
+    ##    Finished count
+    ## 1:     TRUE   284
+    ## 2:    FALSE    30
+
+``` r
 d[, .(count=.N), by = list(Progress)]
 ```
 
+    ##     Progress count
+    ##  1:      100   285
+    ##  2:       26     1
+    ##  3:        1     5
+    ##  4:       16     1
+    ##  5:       13     1
+    ##  6:        0     4
+    ##  7:       40     2
+    ##  8:       12     1
+    ##  9:       89     1
+    ## 10:       53     1
+    ## 11:       14     1
+    ## 12:       67     1
+    ## 13:       63     1
+    ## 14:       27     1
+    ## 15:       99     1
+    ## 16:       10     1
+    ## 17:       15     2
+    ## 18:       21     1
+    ## 19:       49     1
+    ## 20:       78     1
+    ## 21:       69     1
+    ##     Progress count
 
-```{r Utility Functions}
+``` r
 # gets a row by the field "Name" in dataframe "data"
 getRowByName <- function(name, data) {
   return (data[data$Name == name, ]) 
@@ -98,8 +141,7 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
 }
 ```
 
-
-```{r}
+``` r
 nameResumeBinding <- data.table(
   Name  = c("Bradley Meyer", "Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson"),
   Race = c("White", "Black", "White", "Black"),
@@ -109,7 +151,7 @@ nameResumeBinding <- data.table(
 )
 ```
 
-```{r}
+``` r
 treatmentBinding <- data.table(
   LeftName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
   RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
@@ -117,7 +159,7 @@ treatmentBinding <- data.table(
 )
 ```
 
-```{r}
+``` r
 treatmentMetadata <- data.table(treatmentBinding)
 n <- nrow(treatmentMetadata)
 
@@ -155,7 +197,7 @@ for (i in 1:n) {
 }
 ```
 
-```{r}
+``` r
 controlBinding <- data.table(
   LeftResumeId  = c(1, 1, 1, 3, 2, 3),
   RightResumeId = c(2, 3, 4, 2, 4, 4),
@@ -163,7 +205,7 @@ controlBinding <- data.table(
 )
 ```
 
-```{r}
+``` r
 # treatment and control assignment
 n <- nrow(d)
 
@@ -209,14 +251,23 @@ for (i in 1:n) {
 
   
 }
-
 ```
 
-```{r}
+``` r
 d[, .(count=.N), by = list(TreatmentAssignment)]
 ```
 
-```{r}
+    ##    TreatmentAssignment count
+    ## 1:                  NA    32
+    ## 2:               FALSE   143
+    ## 3:                TRUE   139
+
+``` r
 d[, .(count=.N), by = list(IsAttrited)]
 ```
 
+    ##    IsAttrited count
+    ## 1:       TRUE    33
+    ## 2:      FALSE   281
+
+## Analysis
