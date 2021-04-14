@@ -1,6 +1,6 @@
 ## Feature Engineering
 
-```{r}
+```{r, message=FALSE}
 library(data.table)
 library(lmtest)
 library(sandwich)
