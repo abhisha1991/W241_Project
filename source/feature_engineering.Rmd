@@ -11,7 +11,7 @@ library(dplyr)
 ```{r}
 d <- fread("data.csv")
 
-head(d)
+# head(d)
 ```
 
 ```{r}
@@ -95,6 +95,34 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
   controlNa = getSumControlQNA(data, rowNum) 
   treatmentNa = getSumTreatmentQNA(data, rowNum)
   return ((controlNa > 0 & controlNa < 6) & (treatmentNa > 0 & treatmentNa < 6))
+}
+
+# generating random numbers from 1-5 for fake treatment/control responses
+generateRandomIntNums <- function(n, mean, sd) {
+  
+  nums = mean + sd * scale(rnorm(n))
+  # numbers must be 1-5
+  for (i in 1:nrow(nums)) {
+    
+    # arbitrarily choose floor or ceiling for that number (since response must be integer)
+    if(sample(c(0,1), size =1))  {
+      nums[i] = ceiling(nums[i])
+    }
+    else {
+      nums[i] = floor(nums[i]) 
+    }
+    
+    # bound number between 1-5
+    if(nums[i] < 1) {
+      nums[i] = 1
+    }
+    
+    if(nums[i] > 5) {
+      nums[i] = 5
+    }
+  }
+  
+  return(nums[1:n])
 }
 ```
 
@@ -284,7 +312,7 @@ nrow(dCQ5) == nrow(dCQ6)
 ```
 
 ```{r}
-head(dTQ1)
+# head(dTQ1)
 ```
 
 ### Assign Fake Treatment and Control Reponses (Optional)
@@ -300,4 +328,39 @@ head(dTQ1)
 >`4: Slightly prefer right resume`
 
 >`5: Strongly prefer right resume`
+
+```{r Generate Random Numbers And Assign to Response Column}
+
+# We deliberately give fake treatment effects
+dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 2) # WM BM
+dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 2) # WM WF
+dTQ3$TreatmentQ3 = generateRandomIntNums(nrow(dTQ3), 5, 1) # WM BF
+dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 3, 1) # WF BM
+dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 3, 1) # BM BF
+dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 1, 1) # WF BF
+
+# note means are typically underestimated
+mean(dTQ1$TreatmentQ1)
+mean(dTQ2$TreatmentQ2)
+mean(dTQ3$TreatmentQ3)
+mean(dTQ4$TreatmentQ4)
+mean(dTQ5$TreatmentQ5)
+mean(dTQ6$TreatmentQ6)
+
+# We expect the control group to have no difference in left / right resumes (on average)
+dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3, 2)
+dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 3, 2)
+dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 4, 2)
+dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 3, 1)
+dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
+dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 2, 1)
+
+# note means are typically underestimated
+mean(dCQ1$ControlQ1)
+mean(dCQ2$ControlQ2)
+mean(dCQ3$ControlQ3)
+mean(dCQ4$ControlQ4)
+mean(dCQ5$ControlQ5)
+mean(dCQ6$ControlQ6)
+```
 
