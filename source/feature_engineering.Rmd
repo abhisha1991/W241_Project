@@ -166,7 +166,6 @@ controlBinding <- data.table(
 ```{r}
 # treatment and control assignment
 n <- nrow(d)
-n=5
 
 # have valid columns for treatment assignment and attrition
 d$TreatmentAssignment = NA
@@ -200,7 +199,7 @@ for (i in 1:n) {
   d[i]$IsAttrited = isAttrited
   
   # special case, if we find attrition, then we need to re-assign treatment  
-  if (isAttrited) {
+  if (isAttrited & !(isInvalid | isInvalidTreatmentAssigned)) {
     
     numNa = getSumTreatmentQNA(d, i)
     treatment = numNa > 0 & numNa < 6    
