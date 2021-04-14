@@ -11,6 +11,7 @@ library(sandwich)
 library(lmtest)
 library(knitr)
 library(stargazer)
+library(dplyr)
 ```
 
 ```{r, child='./source/feature_engineering.Rmd'}

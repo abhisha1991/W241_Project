@@ -11,7 +11,7 @@ library(dplyr)
 ```{r}
 d <- fread("data.csv")
 
-# head(d)
+head(d)
 ```
 
 ```{r}
@@ -90,7 +90,7 @@ isAttritedRow <- function(data, rowNum) {
   return (result | isInvalidRow(data, rowNum))
 }
 
-# we cannot have NA in both treatment and control
+# we cannot have some NA in both treatment and control
 isInvalidTreatmentAssignment <- function(data, rowNum) {
   controlNa = getSumControlQNA(data, rowNum) 
   treatmentNa = getSumTreatmentQNA(data, rowNum)
@@ -170,6 +170,7 @@ n <- nrow(d)
 # have valid columns for treatment assignment and attrition
 d$TreatmentAssignment = NA
 d$IsAttrited = NA
+d$IsNeverTaker = NA
 
 for (i in 1:n) {
   # row <- getRowByResponseID(d[i]$ResponseID, d)
@@ -183,22 +184,32 @@ for (i in 1:n) {
   # print(c(control, treatment, isInvalid, isAttrited, isInvalidTreatmentAssigned))
   if (isInvalid | isInvalidTreatmentAssigned) {
     
-    sprintf("Row %s is invalid", i)
+    if (isInvalidTreatmentAssigned) {
+      e = sprintf("Row %s has invalid treatment assignment", i)  
+      stop(e)
+    }
+    
+    if (isInvalid) {
+      sprintf("Row %s has no responses in treatment and control columns", i)  
+    }
+    
     d[i]$TreatmentAssignment = NA
     
   }
   else {
     
     if (treatment & control) {
-      print("Both treatment and control are true! This should never happen!")
+      e = sprintf("Both treatment and control are true! This should never happen! Error found in row %s", i)
+      stop(e)
     }
     
     d[i]$TreatmentAssignment = treatment  
   }
   
   d[i]$IsAttrited = isAttrited
+  d[i]$IsNeverTaker = isInvalid
   
-  # special case, if we find attrition, then we need to re-assign treatment  
+  # special case, if we find attrition only, then we need to re-assign treatment  
   if (isAttrited & !(isInvalid | isInvalidTreatmentAssigned)) {
     
     numNa = getSumTreatmentQNA(d, i)
@@ -206,10 +217,7 @@ for (i in 1:n) {
     d[i]$TreatmentAssignment = treatment      
   
   }
-
-  
 }
-
 ```
 
 ```{r}
@@ -219,4 +227,77 @@ d[, .(count=.N), by = list(TreatmentAssignment)]
 ```{r}
 d[, .(count=.N), by = list(IsAttrited)]
 ```
+
+## Create Datasets to be used
+
+```{r Utility Functions for Dataset Creation}
+cols <- colnames(d)
+coreColumns <- cols[!startsWith(cols, "TimeFC_") & !startsWith(cols, "TimeLC_") & !startsWith(cols, "TimePS_") & !startsWith(cols, "TimeCC_") & !startsWith(cols, "TreatmentQ") & !startsWith(cols, "ControlQ")]
+
+getCoreColumnsDataset <- function() {
+  return(d %>% select(one_of(coreColumns)))
+}
+
+getTreatmentDataset <- function(qNum) {
+  treatmentqNum = paste("TreatmentQ", qNum, sep ="")
+  treatmentSet = (d %>% select(one_of(coreColumns) | ends_with(treatmentqNum)))
+  return (treatmentSet[TreatmentAssignment == TRUE, ])
+}
+
+getControlDataset <- function(qNum) {
+  controlqNum = paste("ControlQ", qNum, sep ="")
+  controlSet = (d %>% select(one_of(coreColumns) | ends_with(controlqNum)))
+  return (controlSet[TreatmentAssignment == FALSE, ])
+}
+```
+
+```{r}
+dCore = getCoreColumnsDataset()
+
+dTQ1 = getTreatmentDataset(1)
+dTQ2 = getTreatmentDataset(2)
+dTQ3 = getTreatmentDataset(3)
+dTQ4 = getTreatmentDataset(4)
+dTQ5 = getTreatmentDataset(5)
+dTQ6 = getTreatmentDataset(6)
+
+# sanity check to see all data sets are of the same size
+nrow(dTQ1) == nrow(dTQ2)
+nrow(dTQ2) == nrow(dTQ3) 
+nrow(dTQ3) == nrow(dTQ4) 
+nrow(dTQ4) == nrow(dTQ5) 
+nrow(dTQ5) == nrow(dTQ6)
+
+dCQ1 = getControlDataset(1)
+dCQ2 = getControlDataset(2)
+dCQ3 = getControlDataset(3)
+dCQ4 = getControlDataset(4)
+dCQ5 = getControlDataset(5)
+dCQ6 = getControlDataset(6)
+
+# sanity check to see all data sets are of the same size
+nrow(dCQ1) == nrow(dCQ2)
+nrow(dCQ2) == nrow(dCQ3) 
+nrow(dCQ3) == nrow(dCQ4) 
+nrow(dCQ4) == nrow(dCQ5) 
+nrow(dCQ5) == nrow(dCQ6)
+```
+
+```{r}
+head(dTQ1)
+```
+
+### Assign Fake Treatment and Control Reponses (Optional)
+
+>As we are aware, we had an error in the procedure around collecting data for our participants. Thus we will overwrite the data with fake responses so as to prove out our analysis methodology. Below we choose a `random number generator to generate responses from 1-5`. The rubric is as follows:
+
+>`1: Strongly prefer left resume`
+
+>`2: Slightly prefer left resume`
+
+>`3: Neutral (no preference on left or right resume)`
+
+>`4: Slightly prefer right resume`
+
+>`5: Strongly prefer right resume`
 
