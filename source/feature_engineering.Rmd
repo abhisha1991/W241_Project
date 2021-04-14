@@ -213,6 +213,10 @@ for (i in 1:n) {
 ```
 
 ```{r}
-head(d)
+d[, .(count=.N), by = list(TreatmentAssignment)]
+```
+
+```{r}
+d[, .(count=.N), by = list(IsAttrited)]
 ```
 
