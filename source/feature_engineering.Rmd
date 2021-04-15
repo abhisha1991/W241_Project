@@ -40,6 +40,16 @@ getRowByName <- function(name, data) {
   return (data[data$Name == name, ]) 
 }
 
+# gets a row by the field "TreatmentCol" in dataframe "data"
+getRowByTreatmentCol <- function(num, data) {
+  return (data[data$TreatmentCol == paste("TreatmentQ", num, sep=""), ]) 
+}
+
+# gets a row by the field "ControlCol" in dataframe "data"
+getRowByControlCol <- function(num, data) {
+  return (data[data$ControlCol == paste("ControlQ", num, sep=""), ]) 
+}
+
 # gets a row by the field "ResponseID" in dataframe "data"
 getRowByResponseID <- function(responseId, data) {
   return (data[data$ResponseID == responseId, ]) 
@@ -339,7 +349,7 @@ dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 3, 1) # WF BM
 dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 3, 1) # BM BF
 dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 1, 1) # WF BF
 
-# note means are typically underestimated
+# Note: means are typically underestimated
 mean(dTQ1$TreatmentQ1)
 mean(dTQ2$TreatmentQ2)
 mean(dTQ3$TreatmentQ3)
@@ -355,12 +365,62 @@ dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 3, 1)
 dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
 dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 2, 1)
 
-# note means are typically underestimated
+# Note: means are typically underestimated
 mean(dCQ1$ControlQ1)
 mean(dCQ2$ControlQ2)
 mean(dCQ3$ControlQ3)
 mean(dCQ4$ControlQ4)
 mean(dCQ5$ControlQ5)
 mean(dCQ6$ControlQ6)
+```
+
+```{r Join Treatment and Control Tables with Metadata}
+
+addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
+  
+  row = getRowByTreatmentCol(treatmentNum, treatmentMetadata)
+  
+  dt$LeftName = row$LeftName
+  dt$LeftPersonRace = row$LeftPersonRace
+  dt$LeftPersonGender = row$LeftPersonGender
+  dt$LeftPersonRaceGender = row$LeftPersonRaceGender
+  dt$LeftPersonResumeId = row$LeftPersonResumeId
+    
+  dt$RightName = row$RightName
+  dt$RightPersonRace = row$RightPersonRace
+  dt$RightPersonGender = row$RightPersonGender
+  dt$RightPersonRaceGender = row$RightPersonRaceGender
+  dt$RightPersonResumeId = row$RightPersonResumeId
+  
+  return(dt)
+}
+
+addControlMetadataToDataset <- function(dt, controlNum) {
+  
+  row = getRowByControlCol(controlNum, controlBinding)
+  dt$LeftResumeId = row$LeftResumeId
+  dt$RightResumeId = row$RightResumeId
+  
+  return(dt)
+}
+
+dTQ1 = addTreatmentMetadataToDataset(dTQ1, 1)
+dTQ2 = addTreatmentMetadataToDataset(dTQ2, 2)
+dTQ3 = addTreatmentMetadataToDataset(dTQ3, 3)
+dTQ4 = addTreatmentMetadataToDataset(dTQ4, 4)
+dTQ5 = addTreatmentMetadataToDataset(dTQ5, 5)
+dTQ6 = addTreatmentMetadataToDataset(dTQ6, 6)
+
+dCQ1 = addControlMetadataToDataset(dCQ1, 1)
+dCQ2 = addControlMetadataToDataset(dCQ2, 2)
+dCQ3 = addControlMetadataToDataset(dCQ3, 3)
+dCQ4 = addControlMetadataToDataset(dCQ4, 4)
+dCQ5 = addControlMetadataToDataset(dCQ5, 5)
+dCQ6 = addControlMetadataToDataset(dCQ6, 6)
+
+```
+
+```{r}
+#head(dTQ1)
 ```
 
