@@ -426,5 +426,7 @@ dCQ6 = addControlMetadataToDataset(dCQ6, 6)
 
 ```{r}
 #head(dTQ1)
+#head(dCQ1)
 ```
+
 
