@@ -331,23 +331,27 @@ nrow(dCQ5) == nrow(dCQ6)
 
 >`1: Strongly prefer left resume`
 
->`2: Slightly prefer left resume`
+>`2: Prefer left resume`
 
->`3: Neutral (no preference on left or right resume)`
+>`3: Slightly prefer left resume`
 
->`4: Slightly prefer right resume`
+>`4: Neutral (no preference on left or right resume)`
 
->`5: Strongly prefer right resume`
+>`5: Slightly prefer right resume`
+
+>`6: Prefer right resume`
+
+>`7: Strongly prefer right resume`
 
 ```{r Generate Random Numbers And Assign to Response Column}
 
 # We deliberately give fake treatment effects
 dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 2) # WM BM
-dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 2) # WM WF
+dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 1) # WM WF
 dTQ3$TreatmentQ3 = generateRandomIntNums(nrow(dTQ3), 5, 1) # WM BF
-dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 3, 1) # WF BM
-dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 3, 1) # BM BF
-dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 1, 1) # WF BF
+dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 4, 1) # WF BM
+dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 4, 1) # BM BF
+dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 2, 1) # WF BF
 
 # Note: means are typically underestimated
 mean(dTQ1$TreatmentQ1)
@@ -359,11 +363,11 @@ mean(dTQ6$TreatmentQ6)
 
 # We expect the control group to have no difference in left / right resumes (on average)
 dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3, 2)
-dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 3, 2)
-dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 4, 2)
-dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 3, 1)
+dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 5, 2)
+dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6, 2)
+dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 4, 1)
 dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
-dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 2, 1)
+dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
 
 # Note: means are typically underestimated
 mean(dCQ1$ControlQ1)
