@@ -122,13 +122,13 @@ generateRandomIntNums <- function(n, mean, sd) {
       nums[i] = floor(nums[i]) 
     }
     
-    # bound number between 1-5
+    # bound number between 1-7
     if(nums[i] < 1) {
       nums[i] = 1
     }
     
-    if(nums[i] > 5) {
-      nums[i] = 5
+    if(nums[i] > 7) {
+      nums[i] = 7
     }
   }
   
