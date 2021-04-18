@@ -1,38 +1,45 @@
 ## Feature Engineering
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+# Clean up the workspace before we begin
+rm(list = ls());set.seed(1)
+
 library(data.table)
 library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
+library(DataExplorer)
+
+# Insert the function to *tidy up* the code when they are printed out
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
 ``` 
 
 ```{r}
-d <- fread("data.csv")
+d_ori <- fread("data.csv", , na.strings=c("","NA"))
 
-# head(d)
+head(d_ori)
 ```
 
 ```{r}
 # display number of columns
-length(d[0])
+length(d_ori[0])
 ```
 
 ```{r}
 # ResponseID is our primary key for the table as it is unique for each row and is guaranteed to be present
-nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
+nrow(d_ori[, .(count=.N), by = list(ResponseID)]) == nrow(d_ori)
 ```
 
 
 ```{r}
-d[, .(count=.N), by = list(Finished)]
+d_ori[, .(count=.N), by = list(Finished)]
 ```
 
 ```{r}
-d[, .(count=.N), by = list(Progress)]
+d_ori[, .(count=.N), by = list(ResponseType)]
 ```
-
 
 ```{r Utility Functions}
 # gets a row by the field "Name" in dataframe "data"
@@ -153,44 +160,12 @@ treatmentBinding <- data.table(
   RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
   TreatmentCol = c("TreatmentQ1", "TreatmentQ2", "TreatmentQ3", "TreatmentQ4", "TreatmentQ5", "TreatmentQ6")
 )
-```
 
-```{r}
-treatmentMetadata <- data.table(treatmentBinding)
-n <- nrow(treatmentMetadata)
 
-# fill dummy values to create column names
-for (i in 1:n) {
-  treatmentMetadata$LeftPersonRace = "test"
-  treatmentMetadata$LeftPersonGender = "test"
-  treatmentMetadata$LeftPersonRaceGender = "test"
-  treatmentMetadata$LeftPersonResumeId = "test"
-   
-  treatmentMetadata$RightPersonRace = "test"
-  treatmentMetadata$RightPersonGender = "test"
-  treatmentMetadata$RightPersonRaceGender = "test"
-  treatmentMetadata$RightPersonResumeId = "test"
-}
-
-# iterate through left name and fill left person metadata
-for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$LeftName, nameResumeBinding)
-   
-  treatmentMetadata[i]$LeftPersonRace = row$Race
-  treatmentMetadata[i]$LeftPersonGender = row$Gender
-  treatmentMetadata[i]$LeftPersonRaceGender = row$RaceGender
-  treatmentMetadata[i]$LeftPersonResumeId = row$ResumeId
-}
-
-# iterate through right name and fill right person metadata
-for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$RightName, nameResumeBinding)
-   
-  treatmentMetadata[i]$RightPersonRace = row$Race
-  treatmentMetadata[i]$RightPersonGender = row$Gender
-  treatmentMetadata[i]$RightPersonRaceGender = row$RaceGender
-  treatmentMetadata[i]$RightPersonResumeId = row$ResumeId
-}
+treatmentMetadata <- merge(treatmentBinding, nameResumeBinding, by.x = 'LeftName', by.y = 'Name')
+setnames(treatmentMetadata, 4:7, paste0('Left', names(treatmentMetadata)[4:7]))
+treatmentMetadata <- merge(treatmentMetadata, nameResumeBinding, by.x = 'RightName', by.y = 'Name')
+setnames(treatmentMetadata, 8:11, paste0('Right', names(treatmentMetadata)[8:11]))
 ```
 
 ```{r}
@@ -199,6 +174,15 @@ controlBinding <- data.table(
   RightResumeId = c(2, 3, 4, 2, 4, 4),
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
+
+controlMetadata <- merge(controlBinding, nameResumeBinding, by.x = 'LeftResumeId', by.y = 'ResumeId')
+setnames(controlMetadata, 4:7, paste0('Left', names(controlMetadata)[4:7]))
+controlMetadata <- merge(controlMetadata, nameResumeBinding, by.x = 'RightResumeId', by.y = 'ResumeId')
+setnames(controlMetadata, 8:11, paste0('Right', names(controlMetadata)[8:11]))
+```
+
+```{r Remove uncompleted data and survey preview & spam}
+d <- d_ori[Finished=='TRUE' & ResponseType=='IP Address']
 ```
 
 ```{r}
@@ -259,11 +243,105 @@ for (i in 1:n) {
 ```
 
 ```{r}
+# There are 4 attrited records. Removed here.
+d[, .(count=.N), by = list(IsAttrited)]
+d <- d[IsAttrited==0]
+```
+
+```{r}
+# We also check the average time people take to evaluate 6 pairs of resumes.
+# FC: first click; LC: last click; PS: page submit; CC: click count
+
+d <- d[,  AvgTime := as.double(.N)]
+
+n <- nrow(d)
+for (i in 1:n){
+  if (d[i]$TreatmentAssignment == TRUE){
+    d[i]$AvgTime <- (d[i]$TimePS_TreatmentQ1 + d[i]$TimePS_TreatmentQ2 + d[i]$TimePS_TreatmentQ3 + d[i]$TimePS_TreatmentQ4 + d[i]$TimePS_TreatmentQ5 + d[i]$TimePS_TreatmentQ6)/6
+  }
+  else {
+    d[i]$AvgTime <- (d[i]$TimePS_ControlQ1 + d[i]$TimePS_ControlQ2 + d[i]$TimePS_ControlQ3 + d[i]$TimePS_ControlQ4 + d[i]$TimePS_ControlQ5 + d[i]$TimePS_ControlQ6)/6
+  }
+}
+
+hist(d[TreatmentAssignment==0]$AvgTime, 
+     breaks = 20, 
+     main = 'Histogram for averge answering time for control group questions', 
+     xlab='Averge answering time')
+
+hist(d[TreatmentAssignment==1]$AvgTime, 
+     breaks = 100, 
+     main = 'Histogram for averge answering time for treatment group questions', 
+     xlab='Averge answering time')
+
+print('Median of averge answering time for control group questions')
+median(d[TreatmentAssignment==0]$AvgTime)
+
+print('Median of averge answering time for treatment group questions')
+median(d[TreatmentAssignment==1]$AvgTime)
+```
+
+```{r}
+# Averge answering time is relatively short.
+# Here we remove any record with an average answering time less than 10 seconds.
+d <- d[AvgTime>=10]
+nrow(d)
+```
+
+```{r}
+# Ratio of Treatment and Assignment
 d[, .(count=.N), by = list(TreatmentAssignment)]
 ```
 
 ```{r}
-d[, .(count=.N), by = list(IsAttrited)]
+# Proportion of missing values in covariates
+
+plot_missing(d[, c('YearOfBirth', 'GenderCategory','Gender','IsEnglishFirstLanguage','Race','CountryOfResidence','StateOfResidence','RoleAtBerkeley','IsTransferStudent','YearsAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','IncomeIn2020','HighestDegreeReceived','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','PlaceboPreTestColleagueAffinity','PlaceboPostTestColleagueAffinity')])
+```
+
+We are going to remove last 5 variables that have too many missing values.
+
+```{r}
+# Covariate balance check (The only continuous variable: YearOfBirth)
+
+# Check for outliers and abnormal values
+unique(d$YearOfBirth)
+```
+
+There are outliers such as 25 and 2020, as well as abnormal values such as country names.
+
+```{r}
+# Remove outliers and abnormal values
+d <- d[, YearOfBirth:=as.integer(YearOfBirth)]
+d <- d[YearOfBirth<2015 & YearOfBirth>1950]
+
+plot_density(d$YearOfBirth)
+```
+
+Most of respondents are around 20 years old.
+
+```{r}
+# Covariate balance check (Overall_categorical)
+plot_bar(d[, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
+```
+
+Most of the respondents have never served in uniformed service before, so it is hard to say that their reply will reflect the actual situation in CG. Almost all respondents are from the States. Around 2/3 of the respondents are female, half of them are Asian. Roughly half of them are democrats, and only 5.3% of them are republicans. The main source of data is Xlab (undergraduate Berkeley students). 
+
+```{r}
+# Covariate balance check (Control_categorical)
+plot_bar(d[TreatmentAssignment==0, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
+```
+
+```{r}
+# Covariate balance check (Treatment_categorical)
+plot_bar(d[TreatmentAssignment==1, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
+```
+
+The differnce between categorical variables in control and treatment group is small.
+
+```{r}
+# Ratio of Treatment and Assignment (After removal of outliers and abnormal data)
+d[, .(count=.N), by = list(TreatmentAssignment)]
 ```
 
 ## Create Datasets to be used
@@ -370,6 +448,7 @@ dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
 dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
 
 # Note: means are typically underestimated
+print('---')
 mean(dCQ1$ControlQ1)
 mean(dCQ2$ControlQ2)
 mean(dCQ3$ControlQ3)
