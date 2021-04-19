@@ -1,6 +1,8 @@
 ## Feature Engineering
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Clean up the work space before we begin	
+rm(list = ls());set.seed(1)
 library(data.table)
 library(lmtest)
 library(sandwich)
@@ -9,7 +11,7 @@ library(dplyr)
 ``` 
 
 ```{r}
-d <- fread("data.csv")
+d <- fread("data.csv",  na.strings=c("","NA"))
 
 # head(d)
 ```
@@ -24,6 +26,9 @@ length(d[0])
 nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
 ```
 
+```{r}
+d[, .(count=.N), by = list(ResponseType)]
+```
 
 ```{r}
 d[, .(count=.N), by = list(Finished)]
@@ -31,6 +36,10 @@ d[, .(count=.N), by = list(Finished)]
 
 ```{r}
 d[, .(count=.N), by = list(Progress)]
+```
+
+```{r}
+
 ```
 
 
@@ -88,6 +97,7 @@ isInvalidRow <- function(data, rowNum) {
 }
 
 # if person was assigned to either treatment or control, but didn't end up answering all questions
+# if person didn't answer any of the questions, then also they are considered an attritor
 isAttritedRow <- function(data, rowNum) {
   cols = getSumControlQNA(data, rowNum) 
   result = (cols < 6 & cols > 0)
@@ -107,8 +117,8 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
   return ((controlNa > 0 & controlNa < 6) & (treatmentNa > 0 & treatmentNa < 6))
 }
 
-# generating random numbers from 1-5 for fake treatment/control responses
-generateRandomIntNums <- function(n, mean, sd) {
+# generating random numbers from low to high for fake treatment/control responses
+generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
   
   nums = mean + sd * scale(rnorm(n))
   # numbers must be 1-5
@@ -123,12 +133,12 @@ generateRandomIntNums <- function(n, mean, sd) {
     }
     
     # bound number between 1-7
-    if(nums[i] < 1) {
-      nums[i] = 1
+    if(nums[i] < low) {
+      nums[i] = low
     }
     
-    if(nums[i] > 7) {
-      nums[i] = 7
+    if(nums[i] > high) {
+      nums[i] = high
     }
   }
   
@@ -149,8 +159,8 @@ nameResumeBinding <- data.table(
 
 ```{r}
 treatmentBinding <- data.table(
-  LeftName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
-  RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
+  LeftPersonName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
+  RightPersonName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
   TreatmentCol = c("TreatmentQ1", "TreatmentQ2", "TreatmentQ3", "TreatmentQ4", "TreatmentQ5", "TreatmentQ6")
 )
 ```
@@ -174,7 +184,7 @@ for (i in 1:n) {
 
 # iterate through left name and fill left person metadata
 for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$LeftName, nameResumeBinding)
+  row <- getRowByName(treatmentMetadata[i]$LeftPersonName, nameResumeBinding)
    
   treatmentMetadata[i]$LeftPersonRace = row$Race
   treatmentMetadata[i]$LeftPersonGender = row$Gender
@@ -184,7 +194,7 @@ for (i in 1:n) {
 
 # iterate through right name and fill right person metadata
 for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$RightName, nameResumeBinding)
+  row <- getRowByName(treatmentMetadata[i]$RightPersonName, nameResumeBinding)
    
   treatmentMetadata[i]$RightPersonRace = row$Race
   treatmentMetadata[i]$RightPersonGender = row$Gender
@@ -195,8 +205,8 @@ for (i in 1:n) {
 
 ```{r}
 controlBinding <- data.table(
-  LeftResumeId  = c(1, 1, 1, 3, 2, 3),
-  RightResumeId = c(2, 3, 4, 2, 4, 4),
+  LeftPersonResumeId  = c(1, 1, 1, 3, 2, 3),
+  RightPersonResumeId = c(2, 3, 4, 2, 4, 4),
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
 ```
@@ -266,6 +276,36 @@ d[, .(count=.N), by = list(TreatmentAssignment)]
 d[, .(count=.N), by = list(IsAttrited)]
 ```
 
+```{r}
+# do a sanity check of who we think are "attritors" vs what qualtrics thinks are "attritors"
+responseIDsAttrited = d[IsAttrited == TRUE, ResponseID]
+responseIDsBad = d[Finished == FALSE | ResponseType != "IP Address", ResponseID]
+responseIDsUnFinishedOnly = d[Finished == FALSE, ResponseID]
+
+# there seem to be a mismatch in what we consider attrited vs what Qualtrics thinks is attrited
+length(responseIDsAttrited)
+length(responseIDsBad)
+length(responseIDsUnFinishedOnly)
+
+# Number of common elements between these sets
+length(intersect(responseIDsAttrited, responseIDsBad))
+length(intersect(responseIDsAttrited, responseIDsUnFinishedOnly))
+
+# setdiff tells us the response IDs that exist in the first list, but dont exist in the 2nd list
+
+print("These are the respondents we think are attritors but Qualtrics thinks are not attritors")
+setdiff(responseIDsAttrited, responseIDsBad)
+
+print("These are the respondents Qualtrics think are attritors but we think are not")
+setdiff(responseIDsBad, responseIDsAttrited)
+
+setdiff(responseIDsAttrited, responseIDsUnFinishedOnly)
+setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
+
+# Examining the list that qualtrics thinks are attritors, we see in fact they are not attritors, so we'll stick to our definition
+# example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
+```
+
 ## Create Datasets to be used
 
 ```{r Utility Functions for Dataset Creation}
@@ -327,7 +367,7 @@ nrow(dCQ5) == nrow(dCQ6)
 
 ### Assign Fake Treatment and Control Reponses (Optional)
 
->As we are aware, we had an error in the procedure around collecting data for our participants. Thus we will overwrite the data with fake responses so as to prove out our analysis methodology. Below we choose a `random number generator to generate responses from 1-5`. The rubric is as follows:
+>As we are aware, we had an error in the procedure around collecting data for our participants. Thus we will overwrite the data with fake responses so as to prove out our analysis methodology. Below we choose a `random number generator to generate responses from 1-7`. The rubric is as follows:
 
 >`1: Strongly prefer left resume`
 
@@ -354,6 +394,7 @@ dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 4, 1) # BM BF
 dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 2, 1) # WF BF
 
 # Note: means are typically underestimated
+print("Treatment Means")
 mean(dTQ1$TreatmentQ1)
 mean(dTQ2$TreatmentQ2)
 mean(dTQ3$TreatmentQ3)
@@ -370,6 +411,7 @@ dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
 dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
 
 # Note: means are typically underestimated
+print("Control Means")
 mean(dCQ1$ControlQ1)
 mean(dCQ2$ControlQ2)
 mean(dCQ3$ControlQ3)
@@ -384,13 +426,13 @@ addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
   
   row = getRowByTreatmentCol(treatmentNum, treatmentMetadata)
   
-  dt$LeftName = row$LeftName
+  dt$LeftPersonName = row$LeftPersonName
   dt$LeftPersonRace = row$LeftPersonRace
   dt$LeftPersonGender = row$LeftPersonGender
   dt$LeftPersonRaceGender = row$LeftPersonRaceGender
   dt$LeftPersonResumeId = row$LeftPersonResumeId
     
-  dt$RightName = row$RightName
+  dt$RightPersonName = row$RightPersonName
   dt$RightPersonRace = row$RightPersonRace
   dt$RightPersonGender = row$RightPersonGender
   dt$RightPersonRaceGender = row$RightPersonRaceGender
@@ -402,8 +444,20 @@ addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
 addControlMetadataToDataset <- function(dt, controlNum) {
   
   row = getRowByControlCol(controlNum, controlBinding)
-  dt$LeftResumeId = row$LeftResumeId
-  dt$RightResumeId = row$RightResumeId
+
+  # only resume ID is available in the control group (by design)
+  dt$LeftPersonName = NA
+  dt$LeftPersonRace = NA
+  dt$LeftPersonGender = NA
+  dt$LeftPersonRaceGender = NA
+  dt$LeftPersonResumeId = row$LeftPersonResumeId
+  
+  # only resume ID is available in the control group (by design)
+  dt$RightPersonName = NA
+  dt$RightPersonRace = NA
+  dt$RightPersonGender = NA
+  dt$RightPersonRaceGender = NA
+  dt$RightPersonResumeId = row$RightPersonResumeId
   
   return(dt)
 }
@@ -424,9 +478,72 @@ dCQ6 = addControlMetadataToDataset(dCQ6, 6)
 
 ```
 
-```{r}
-#head(dTQ1)
-#head(dCQ1)
+```{r, Finally we merge the treatment and control datasets, question by question}
+# First, we notice that the 2 datasets dont have the same columns
+print("Before convergence")
+identical(colnames(dTQ1), colnames(dCQ1))
+# Since the "Question columns" are named like "TimeFC_TreatmentQ1" in the treatment set and "TimeFC_ControlQ1" in the control set
+# Thus we snap to naming these as "TimeFCQ" in both treatment and control. We add a dedicated column for Question Number as well to differentiate.
+# The same naming convention goes for other columns - TimePS, TimeLS, TimeCC etc.
+
+convergeTreatmentColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_TreatmentQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_TreatmentQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_TreatmentQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_TreatmentQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("TreatmentQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+convergeControlColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_ControlQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_ControlQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_ControlQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_ControlQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("ControlQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+dTQ1 = convergeTreatmentColumns(dTQ1, 1)
+dCQ1 = convergeControlColumns(dCQ1, 1)
+
+# now the test should pass 
+print("After convergence")
+identical(colnames(dTQ1), colnames(dCQ1))
+
+# do the same for other questions
+
+dTQ2 = convergeTreatmentColumns(dTQ2, 2)
+dCQ2 = convergeControlColumns(dCQ2, 2)
+
+dTQ3 = convergeTreatmentColumns(dTQ3, 3)
+dCQ3 = convergeControlColumns(dCQ3, 3)
+
+dTQ4 = convergeTreatmentColumns(dTQ4, 4)
+dCQ4 = convergeControlColumns(dCQ4, 4)
+
+dTQ5 = convergeTreatmentColumns(dTQ5, 5)
+dCQ5 = convergeControlColumns(dCQ5, 5)
+
+dTQ6 = convergeTreatmentColumns(dTQ6, 6)
+dCQ6 = convergeControlColumns(dCQ6, 6)
+
+# sanity check on column names for all datasets
+identical(colnames(dTQ2), colnames(dCQ2))
+identical(colnames(dTQ3), colnames(dCQ3))
+identical(colnames(dTQ4), colnames(dCQ4))
+identical(colnames(dTQ5), colnames(dCQ5))
+identical(colnames(dTQ6), colnames(dCQ6))
+
+# now that we have converged on column names, we should be able to merge all data sets in row major format
+appendAllDataTables <- function(tableList) {
+  obj <- deparse(substitute(tableList[1]))
+  assign(obj, value = data.table::rbindlist(tableList), envir = .GlobalEnv)
+}
+  
+dataset = appendAllDataTables(list(dTQ1, dTQ2, dTQ3, dTQ4, dTQ5, dTQ6, dCQ1, dCQ2, dCQ3, dCQ4, dCQ5, dCQ6))
 ```
 
 
