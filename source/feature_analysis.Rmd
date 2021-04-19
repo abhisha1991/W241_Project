@@ -1,0 +1,15 @@
+## Feature Analysis
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(data.table)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(dplyr)
+library(DataExplorer)
+
+# Insert the function to *tidy up* the code when they are printed out	
+library(knitr)
+
+opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
+``` 

@@ -2,7 +2,7 @@
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # Clean up the work space before we begin	
-rm(list = ls());set.seed(1)
+rm(list = ls()); set.seed(1)
 library(data.table)
 library(lmtest)
 library(sandwich)

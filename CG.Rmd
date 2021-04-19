@@ -5,7 +5,7 @@ date: 4/2021
 output: github_document
 ---
 
-```{r load packages, warning=FALSE, message=FALSE}
+```{r load packages, warning=FALSE, message=FALSE, echo=FALSE}
 library(data.table)
 library(sandwich)
 library(lmtest)
@@ -15,6 +15,9 @@ library(dplyr)
 ```
 
 ```{r, child='./source/feature_engineering.Rmd'}
+```
+
+```{r, child='./source/feature_analysis.Rmd'}
 ```
 
 ```{r, child='./source/analysis.Rmd'}
