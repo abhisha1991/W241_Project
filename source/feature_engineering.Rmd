@@ -38,11 +38,6 @@ d[, .(count=.N), by = list(Finished)]
 d[, .(count=.N), by = list(Progress)]
 ```
 
-```{r}
-
-```
-
-
 ```{r Utility Functions}
 # gets a row by the field "Name" in dataframe "data"
 getRowByName <- function(name, data) {
@@ -386,7 +381,7 @@ nrow(dCQ5) == nrow(dCQ6)
 ```{r Generate Random Numbers And Assign to Response Column}
 
 # We deliberately give fake treatment effects
-dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 2) # WM BM
+dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 1) # WM BM
 dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 1) # WM WF
 dTQ3$TreatmentQ3 = generateRandomIntNums(nrow(dTQ3), 5, 1) # WM BF
 dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 4, 1) # WF BM
@@ -403,9 +398,9 @@ mean(dTQ5$TreatmentQ5)
 mean(dTQ6$TreatmentQ6)
 
 # We expect the control group to have no difference in left / right resumes (on average)
-dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3, 2)
+dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3.5, 1)
 dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 5, 2)
-dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6, 2)
+dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6.5, 2)
 dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 4, 1)
 dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
 dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
@@ -546,4 +541,52 @@ appendAllDataTables <- function(tableList) {
 dataset = appendAllDataTables(list(dTQ1, dTQ2, dTQ3, dTQ4, dTQ5, dTQ6, dCQ1, dCQ2, dCQ3, dCQ4, dCQ5, dCQ6))
 ```
 
+```{r}
+# AgeBin is a feature of interest for us, which tells us which age group the respondent belongs to
+# We will infer this from the YearOfBirth variable
+
+# First convert the variable to numeric
+dataset$YearOfBirth = as.numeric(dataset$YearOfBirth)
+# Get current age
+dataset$Age = as.integer(format(Sys.Date(), "%Y")) - dataset$YearOfBirth
+# Add a column called AgeBin
+dataset$AgeBin = "NA"
+
+# TODO: clean up - probably a better way to implement this
+AssignAgeBin <- function(dt) {
+  
+  for (i in 1:nrow(dt)) {
+    
+          # we were able to parse the year as an int
+          if (!is.na(dt[i]$Age) & is.numeric(dt[i]$Age) & dt[i]$Age > 0 & (floor(log10(dt[i]$YearOfBirth)) + 1) == 4) {
+              # valid age, assign to category
+              # we will keep things simple and have 0-12, 12-25, 25-40, 40-60, 60+
+              if (dt[i]$Age <= 12) {
+                dt[i]$AgeBin = "Child"
+              } else if (dt[i]$Age <= 25) {
+                dt[i]$AgeBin = "Student"
+              } else if (dt[i]$Age <= 40) {
+                dt[i]$AgeBin = "Adult"
+              } else if (dt[i]$Age <= 60) {
+                dt[i]$AgeBin = "MiddleAge"
+              } else if (dt[i]$Age > 60) {
+                dt[i]$AgeBin = "Senior"
+              } else {
+                dt[i]$AgeBin = NA
+              }
+          
+          }
+          else {
+            # assign to NA
+            dt[i]$AgeBin = NA
+          }
+    
+  } # end of for loop
+  
+  return(dt)
+}
+
+
+dataset = AssignAgeBin(dataset)
+```
 

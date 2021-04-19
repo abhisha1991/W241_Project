@@ -6,10 +6,10 @@ library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
-library(DataExplorer)
+#library(DataExplorer)
 
 # Insert the function to *tidy up* the code when they are printed out	
-library(knitr)
+#library(knitr)
 
-opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
+#opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
 ``` 

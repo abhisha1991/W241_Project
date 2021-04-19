@@ -20,6 +20,6 @@ library(dplyr)
 ```{r, child='./source/feature_analysis.Rmd'}
 ```
 
-```{r, child='./source/analysis.Rmd'}
+```{r, child='./source/main_analysis.Rmd'}
 ```
 
