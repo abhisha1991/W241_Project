@@ -71,3 +71,27 @@ for (i in 1:length(data_list)) {
 stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regression (Demographic Covariates)")
 ```
 
+### Covariate Analysis (Profession Variables)
+
+```{r}
+mod_pf = list()
+
+for (i in 1:length(data_list)) {
+  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment +  HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + IncomeIn2020, data = data_list[[i]])
+}
+
+stargazer(mod_pf, type = "text", title = "Differences in Differences via Regression (Profession Covariates)")
+```
+
+
+### Covariate Analysis (Behavioral Variables)
+
+```{r}
+mod_bhv = list()
+
+for (i in 1:length(data_list)) {
+  mod_bhv[[i]] = lm(ResponseQ ~ TreatmentAssignment +  FrequencySocialMediaAccess + FrequencySocialMediaPosting + BookFormatPurchasedMostOften, data = data_list[[i]])
+}
+
+stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regression (Behavioral Covariates)")
+```
