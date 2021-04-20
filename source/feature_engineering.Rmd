@@ -34,10 +34,6 @@ d[, .(count=.N), by = list(ResponseType)]
 d[, .(count=.N), by = list(Finished)]
 ```
 
-```{r}
-d[, .(count=.N), by = list(Progress)]
-```
-
 ```{r Utility Functions}
 # gets a row by the field "Name" in dataframe "data"
 getRowByName <- function(name, data) {
@@ -141,6 +137,7 @@ generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
 }
 ```
 
+## Create meta data for control & treatment group
 
 ```{r}
 nameResumeBinding <- data.table(
@@ -205,6 +202,9 @@ controlBinding <- data.table(
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
 ```
+
+
+## Treatment & Control assignment; Attritor check
 
 ```{r}
 # treatment and control assignment
@@ -299,6 +299,68 @@ setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
 
 # Examining the list that qualtrics thinks are attritors, we see in fact they are not attritors, so we'll stick to our definition
 # example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
+```
+
+```{r}
+# Remove records that we think are attritors
+d <- d[IsAttrited == FALSE]
+nrow(d)
+```
+
+## Filter data with low answering time
+
+```{r}
+# We also check the average time people take to evaluate 6 pairs of resumes.
+# FC: first click; LC: last click; PS: page submit; CC: click count
+
+d <- d[,  AvgTime := as.double(.N)]
+
+n <- nrow(d)
+for (i in 1:n){
+  if (d[i]$TreatmentAssignment == TRUE){
+    d[i]$AvgTime <- (d[i]$TimePS_TreatmentQ1 + d[i]$TimePS_TreatmentQ2 + d[i]$TimePS_TreatmentQ3 + d[i]$TimePS_TreatmentQ4 + d[i]$TimePS_TreatmentQ5 + d[i]$TimePS_TreatmentQ6)/6
+  }
+  else {
+    d[i]$AvgTime <- (d[i]$TimePS_ControlQ1 + d[i]$TimePS_ControlQ2 + d[i]$TimePS_ControlQ3 + d[i]$TimePS_ControlQ4 + d[i]$TimePS_ControlQ5 + d[i]$TimePS_ControlQ6)/6
+  }
+}
+
+hist(d[TreatmentAssignment==0]$AvgTime, 
+     breaks = 20, 
+     main = 'Histogram for averge answering time for control group questions', 
+     xlab='Averge answering time')
+
+hist(d[TreatmentAssignment==1]$AvgTime, 
+     breaks = 100, 
+     main = 'Histogram for averge answering time for treatment group questions', 
+     xlab='Averge answering time')
+
+print('Median of averge answering time for control group questions')
+median(d[TreatmentAssignment==0]$AvgTime)
+
+print('Median of averge answering time for treatment group questions')
+median(d[TreatmentAssignment==1]$AvgTime)
+```
+
+```{r}
+# Averge answering time is relatively short.
+# Here we remove any record with an average answering time less than 10 seconds.
+d <- d[AvgTime>=10]
+nrow(d)
+```
+
+## Filter data with YearOfBirth
+```{r}
+# Check for outliers and abnormal values
+unique(d$YearOfBirth)
+```
+
+There are outliers such as 25 and 2020, as well as abnormal values such as country names.
+
+```{r}
+# Remove outliers and abnormal values
+d <- d[, YearOfBirth:=as.integer(YearOfBirth)]
+d <- d[YearOfBirth<2015 & YearOfBirth>1950]
 ```
 
 ## Create Datasets to be used
@@ -560,8 +622,11 @@ AssignAgeBin <- function(dt) {
           # we were able to parse the year as an int
           if (!is.na(dt[i]$Age) & is.numeric(dt[i]$Age) & dt[i]$Age > 0 & (floor(log10(dt[i]$YearOfBirth)) + 1) == 4) {
               # valid age, assign to category
-              # we will keep things simple and have 0-12, 12-25, 25-40, 40-60, 60+
-              if (dt[i]$Age <= 12) {
+              # we will keep things simple and have 6-12, 12-25, 25-40, 40-60, 60+
+              # for age under 6, we assume that the age is invalid and need to be removed later
+              if (dt[i]$Age <= 6) {
+                dt[i]$AgeBin = NA
+              } else if (dt[i]$Age <= 12) {
                 dt[i]$AgeBin = "Child"
               } else if (dt[i]$Age <= 25) {
                 dt[i]$AgeBin = "Student"
@@ -586,7 +651,8 @@ AssignAgeBin <- function(dt) {
   return(dt)
 }
 
-
-dataset = AssignAgeBin(dataset)
+dataset <- na.omit(dataset, cols="Age")
+dataset <- AssignAgeBin(dataset)
+dataset <- na.omit(dataset, cols="AgeBin")
 ```
 

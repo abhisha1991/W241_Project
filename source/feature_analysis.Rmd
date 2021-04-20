@@ -6,10 +6,69 @@ library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
-#library(DataExplorer)
-
+library(DataExplorer)
+library(MatchIt)
+library(cobalt)
+library(ggplot2)
 # Insert the function to *tidy up* the code when they are printed out	
-#library(knitr)
-
-#opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
 ``` 
+
+### Check balance of control & treatment balance
+```{r}
+# Ratio of Treatment and Assignment (After removal of outliers and abnormal data)
+d[, .(count=.N), by = list(TreatmentAssignment)]
+```
+
+
+### Check covariate
+```{r}
+# Proportion of missing values in covariates
+
+plot_missing(d[, c('YearOfBirth', 'GenderCategory','Gender','IsEnglishFirstLanguage','Race','CountryOfResidence','StateOfResidence','RoleAtBerkeley','IsTransferStudent','YearsAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','IncomeIn2020','HighestDegreeReceived','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','PlaceboPreTestColleagueAffinity','PlaceboPostTestColleagueAffinity')])
+```
+
+We are going to ignore last 5 variables that have too many missing values.
+
+```{r}
+# Covariate balance check (The only continuous variable: YearOfBirth)
+# We have already removed outliers and abnormal values in feature engineering
+
+plot_density(d$YearOfBirth)
+```
+
+Most of respondents are around 20 years old.
+
+```{r}
+# Covariate balance check (Overall)
+plot_bar(d[, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
+```
+
+Most of the respondents have never served in uniformed service before, so it is hard to say that their reply will reflect the actual situation in CG. Almost all respondents are from the States. Around 2/3 of the respondents are female, half of them are Asian. Roughly half of them are democrats, and only 5.3% of them are republicans. The main source of data is Xlab (undergraduate Berkeley students). 
+
+```{r}
+# Covariate balance check (Control vs Treatment)
+
+match.o <- matchit(TreatmentAssignment ~ YearOfBirth + GenderCategory + Race + IsEnglishFirstLanguage + HighestDegreeReceived + DidEarnMoneyLastYear +
+                     EmploymentStatus + PoliticalAffiliation + ReligiousAffliation + BookFormatPurchasedMostOften + FrequencySocialMediaAccess +
+                     FrequencySocialMediaPosting + ClassLevel + GenderCGSurvey + HasServedInCG + HasServedInAnyOtherUniformedService, 
+                   data = d,
+                   method = NULL)
+
+summary(match.o)
+```
+
+```{r warning=FALSE}
+bal.plot(match.o, var.name = "YearOfBirth")
+bal.plot(match.o, var.name = "GenderCategory") + scale_x_discrete(guide = guide_axis(n.dodge=2))
+bal.plot(match.o, var.name = "Race") + scale_x_discrete(guide = guide_axis(n.dodge=3))
+```
+
+```{r warning=FALSE}
+match.o <- matchit(TreatmentAssignment ~ YearOfBirth + GenderCategory + Race,
+                   data = d,
+                   method = NULL)
+love.plot(match.o, stats='mean.diffs', binary='std')
+love.plot(match.o, stats='variance.ratios')
+```
