@@ -1,44 +1,41 @@
 ## Feature Engineering
 
-```{r, message=FALSE, echo=FALSE, warning=FALSE}
-# Clean up the workspace before we begin
-rm(list = ls());set.seed(1)
-
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+# Clean up the work space before we begin	
+rm(list = ls()); set.seed(1)
 library(data.table)
 library(lmtest)
 library(sandwich)
 library(stargazer)
 library(dplyr)
-library(DataExplorer)
-
-# Insert the function to *tidy up* the code when they are printed out
-library(knitr)
-opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy=TRUE)
 ``` 
 
 ```{r}
-d_ori <- fread("data.csv", , na.strings=c("","NA"))
+d <- fread("data.csv",  na.strings=c("","NA"))
 
-head(d_ori)
+# head(d)
 ```
 
 ```{r}
 # display number of columns
-length(d_ori[0])
+length(d[0])
 ```
 
 ```{r}
 # ResponseID is our primary key for the table as it is unique for each row and is guaranteed to be present
-nrow(d_ori[, .(count=.N), by = list(ResponseID)]) == nrow(d_ori)
-```
-
-
-```{r}
-d_ori[, .(count=.N), by = list(Finished)]
+nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
 ```
 
 ```{r}
-d_ori[, .(count=.N), by = list(ResponseType)]
+d[, .(count=.N), by = list(ResponseType)]
+```
+
+```{r}
+d[, .(count=.N), by = list(Finished)]
+```
+
+```{r}
+d[, .(count=.N), by = list(Progress)]
 ```
 
 ```{r Utility Functions}
@@ -95,6 +92,7 @@ isInvalidRow <- function(data, rowNum) {
 }
 
 # if person was assigned to either treatment or control, but didn't end up answering all questions
+# if person didn't answer any of the questions, then also they are considered an attritor
 isAttritedRow <- function(data, rowNum) {
   cols = getSumControlQNA(data, rowNum) 
   result = (cols < 6 & cols > 0)
@@ -114,8 +112,8 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
   return ((controlNa > 0 & controlNa < 6) & (treatmentNa > 0 & treatmentNa < 6))
 }
 
-# generating random numbers from 1-5 for fake treatment/control responses
-generateRandomIntNums <- function(n, mean, sd) {
+# generating random numbers from low to high for fake treatment/control responses
+generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
   
   nums = mean + sd * scale(rnorm(n))
   # numbers must be 1-5
@@ -130,12 +128,12 @@ generateRandomIntNums <- function(n, mean, sd) {
     }
     
     # bound number between 1-7
-    if(nums[i] < 1) {
-      nums[i] = 1
+    if(nums[i] < low) {
+      nums[i] = low
     }
     
-    if(nums[i] > 7) {
-      nums[i] = 7
+    if(nums[i] > high) {
+      nums[i] = high
     }
   }
   
@@ -156,33 +154,56 @@ nameResumeBinding <- data.table(
 
 ```{r}
 treatmentBinding <- data.table(
-  LeftName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
-  RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
+  LeftPersonName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
+  RightPersonName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
   TreatmentCol = c("TreatmentQ1", "TreatmentQ2", "TreatmentQ3", "TreatmentQ4", "TreatmentQ5", "TreatmentQ6")
 )
+```
 
+```{r}
+treatmentMetadata <- data.table(treatmentBinding)
+n <- nrow(treatmentMetadata)
 
-treatmentMetadata <- merge(treatmentBinding, nameResumeBinding, by.x = 'LeftName', by.y = 'Name')
-setnames(treatmentMetadata, 4:7, paste0('Left', names(treatmentMetadata)[4:7]))
-treatmentMetadata <- merge(treatmentMetadata, nameResumeBinding, by.x = 'RightName', by.y = 'Name')
-setnames(treatmentMetadata, 8:11, paste0('Right', names(treatmentMetadata)[8:11]))
+# fill dummy values to create column names
+for (i in 1:n) {
+  treatmentMetadata$LeftPersonRace = "test"
+  treatmentMetadata$LeftPersonGender = "test"
+  treatmentMetadata$LeftPersonRaceGender = "test"
+  treatmentMetadata$LeftPersonResumeId = "test"
+   
+  treatmentMetadata$RightPersonRace = "test"
+  treatmentMetadata$RightPersonGender = "test"
+  treatmentMetadata$RightPersonRaceGender = "test"
+  treatmentMetadata$RightPersonResumeId = "test"
+}
+
+# iterate through left name and fill left person metadata
+for (i in 1:n) {
+  row <- getRowByName(treatmentMetadata[i]$LeftPersonName, nameResumeBinding)
+   
+  treatmentMetadata[i]$LeftPersonRace = row$Race
+  treatmentMetadata[i]$LeftPersonGender = row$Gender
+  treatmentMetadata[i]$LeftPersonRaceGender = row$RaceGender
+  treatmentMetadata[i]$LeftPersonResumeId = row$ResumeId
+}
+
+# iterate through right name and fill right person metadata
+for (i in 1:n) {
+  row <- getRowByName(treatmentMetadata[i]$RightPersonName, nameResumeBinding)
+   
+  treatmentMetadata[i]$RightPersonRace = row$Race
+  treatmentMetadata[i]$RightPersonGender = row$Gender
+  treatmentMetadata[i]$RightPersonRaceGender = row$RaceGender
+  treatmentMetadata[i]$RightPersonResumeId = row$ResumeId
+}
 ```
 
 ```{r}
 controlBinding <- data.table(
-  LeftResumeId  = c(1, 1, 1, 3, 2, 3),
-  RightResumeId = c(2, 3, 4, 2, 4, 4),
+  LeftPersonResumeId  = c(1, 1, 1, 3, 2, 3),
+  RightPersonResumeId = c(2, 3, 4, 2, 4, 4),
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
-
-controlMetadata <- merge(controlBinding, nameResumeBinding, by.x = 'LeftResumeId', by.y = 'ResumeId')
-setnames(controlMetadata, 4:7, paste0('Left', names(controlMetadata)[4:7]))
-controlMetadata <- merge(controlMetadata, nameResumeBinding, by.x = 'RightResumeId', by.y = 'ResumeId')
-setnames(controlMetadata, 8:11, paste0('Right', names(controlMetadata)[8:11]))
-```
-
-```{r Remove uncompleted data and survey preview & spam}
-d <- d_ori[Finished=='TRUE' & ResponseType=='IP Address']
 ```
 
 ```{r}
@@ -243,105 +264,41 @@ for (i in 1:n) {
 ```
 
 ```{r}
-# There are 4 attrited records. Removed here.
+d[, .(count=.N), by = list(TreatmentAssignment)]
+```
+
+```{r}
 d[, .(count=.N), by = list(IsAttrited)]
-d <- d[IsAttrited==0]
 ```
 
 ```{r}
-# We also check the average time people take to evaluate 6 pairs of resumes.
-# FC: first click; LC: last click; PS: page submit; CC: click count
+# do a sanity check of who we think are "attritors" vs what qualtrics thinks are "attritors"
+responseIDsAttrited = d[IsAttrited == TRUE, ResponseID]
+responseIDsBad = d[Finished == FALSE | ResponseType != "IP Address", ResponseID]
+responseIDsUnFinishedOnly = d[Finished == FALSE, ResponseID]
 
-d <- d[,  AvgTime := as.double(.N)]
+# there seem to be a mismatch in what we consider attrited vs what Qualtrics thinks is attrited
+length(responseIDsAttrited)
+length(responseIDsBad)
+length(responseIDsUnFinishedOnly)
 
-n <- nrow(d)
-for (i in 1:n){
-  if (d[i]$TreatmentAssignment == TRUE){
-    d[i]$AvgTime <- (d[i]$TimePS_TreatmentQ1 + d[i]$TimePS_TreatmentQ2 + d[i]$TimePS_TreatmentQ3 + d[i]$TimePS_TreatmentQ4 + d[i]$TimePS_TreatmentQ5 + d[i]$TimePS_TreatmentQ6)/6
-  }
-  else {
-    d[i]$AvgTime <- (d[i]$TimePS_ControlQ1 + d[i]$TimePS_ControlQ2 + d[i]$TimePS_ControlQ3 + d[i]$TimePS_ControlQ4 + d[i]$TimePS_ControlQ5 + d[i]$TimePS_ControlQ6)/6
-  }
-}
+# Number of common elements between these sets
+length(intersect(responseIDsAttrited, responseIDsBad))
+length(intersect(responseIDsAttrited, responseIDsUnFinishedOnly))
 
-hist(d[TreatmentAssignment==0]$AvgTime, 
-     breaks = 20, 
-     main = 'Histogram for averge answering time for control group questions', 
-     xlab='Averge answering time')
+# setdiff tells us the response IDs that exist in the first list, but dont exist in the 2nd list
 
-hist(d[TreatmentAssignment==1]$AvgTime, 
-     breaks = 100, 
-     main = 'Histogram for averge answering time for treatment group questions', 
-     xlab='Averge answering time')
+print("These are the respondents we think are attritors but Qualtrics thinks are not attritors")
+setdiff(responseIDsAttrited, responseIDsBad)
 
-print('Median of averge answering time for control group questions')
-median(d[TreatmentAssignment==0]$AvgTime)
+print("These are the respondents Qualtrics think are attritors but we think are not")
+setdiff(responseIDsBad, responseIDsAttrited)
 
-print('Median of averge answering time for treatment group questions')
-median(d[TreatmentAssignment==1]$AvgTime)
-```
+setdiff(responseIDsAttrited, responseIDsUnFinishedOnly)
+setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
 
-```{r}
-# Averge answering time is relatively short.
-# Here we remove any record with an average answering time less than 10 seconds.
-d <- d[AvgTime>=10]
-nrow(d)
-```
-
-```{r}
-# Ratio of Treatment and Assignment
-d[, .(count=.N), by = list(TreatmentAssignment)]
-```
-
-```{r}
-# Proportion of missing values in covariates
-
-plot_missing(d[, c('YearOfBirth', 'GenderCategory','Gender','IsEnglishFirstLanguage','Race','CountryOfResidence','StateOfResidence','RoleAtBerkeley','IsTransferStudent','YearsAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','IncomeIn2020','HighestDegreeReceived','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','PlaceboPreTestColleagueAffinity','PlaceboPostTestColleagueAffinity')])
-```
-
-We are going to remove last 5 variables that have too many missing values.
-
-```{r}
-# Covariate balance check (The only continuous variable: YearOfBirth)
-
-# Check for outliers and abnormal values
-unique(d$YearOfBirth)
-```
-
-There are outliers such as 25 and 2020, as well as abnormal values such as country names.
-
-```{r}
-# Remove outliers and abnormal values
-d <- d[, YearOfBirth:=as.integer(YearOfBirth)]
-d <- d[YearOfBirth<2015 & YearOfBirth>1950]
-
-plot_density(d$YearOfBirth)
-```
-
-Most of respondents are around 20 years old.
-
-```{r}
-# Covariate balance check (Overall_categorical)
-plot_bar(d[, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
-```
-
-Most of the respondents have never served in uniformed service before, so it is hard to say that their reply will reflect the actual situation in CG. Almost all respondents are from the States. Around 2/3 of the respondents are female, half of them are Asian. Roughly half of them are democrats, and only 5.3% of them are republicans. The main source of data is Xlab (undergraduate Berkeley students). 
-
-```{r}
-# Covariate balance check (Control_categorical)
-plot_bar(d[TreatmentAssignment==0, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
-```
-
-```{r}
-# Covariate balance check (Treatment_categorical)
-plot_bar(d[TreatmentAssignment==1, c('GenderCategory','IsEnglishFirstLanguage','HighestDegreeReceived','Race','RoleAtBerkeley','DidEarnMoneyLastYear','EmploymentStatus','PoliticalAffiliation','ReligiousAffliation','BookFormatPurchasedMostOften','FrequencySocialMediaAccess','FrequencySocialMediaPosting','ClassLevel','GenderCGSurvey','HasServedInCG','HasServedInAnyOtherUniformedService','CountryOfResidence')], nrow=2, ncol=1)
-```
-
-The differnce between categorical variables in control and treatment group is small.
-
-```{r}
-# Ratio of Treatment and Assignment (After removal of outliers and abnormal data)
-d[, .(count=.N), by = list(TreatmentAssignment)]
+# Examining the list that qualtrics thinks are attritors, we see in fact they are not attritors, so we'll stick to our definition
+# example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
 ```
 
 ## Create Datasets to be used
@@ -405,7 +362,7 @@ nrow(dCQ5) == nrow(dCQ6)
 
 ### Assign Fake Treatment and Control Reponses (Optional)
 
->As we are aware, we had an error in the procedure around collecting data for our participants. Thus we will overwrite the data with fake responses so as to prove out our analysis methodology. Below we choose a `random number generator to generate responses from 1-5`. The rubric is as follows:
+>As we are aware, we had an error in the procedure around collecting data for our participants. Thus we will overwrite the data with fake responses so as to prove out our analysis methodology. Below we choose a `random number generator to generate responses from 1-7`. The rubric is as follows:
 
 >`1: Strongly prefer left resume`
 
@@ -424,7 +381,7 @@ nrow(dCQ5) == nrow(dCQ6)
 ```{r Generate Random Numbers And Assign to Response Column}
 
 # We deliberately give fake treatment effects
-dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 2) # WM BM
+dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 1) # WM BM
 dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 1) # WM WF
 dTQ3$TreatmentQ3 = generateRandomIntNums(nrow(dTQ3), 5, 1) # WM BF
 dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 4, 1) # WF BM
@@ -432,6 +389,7 @@ dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 4, 1) # BM BF
 dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 2, 1) # WF BF
 
 # Note: means are typically underestimated
+print("Treatment Means")
 mean(dTQ1$TreatmentQ1)
 mean(dTQ2$TreatmentQ2)
 mean(dTQ3$TreatmentQ3)
@@ -440,15 +398,15 @@ mean(dTQ5$TreatmentQ5)
 mean(dTQ6$TreatmentQ6)
 
 # We expect the control group to have no difference in left / right resumes (on average)
-dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3, 2)
+dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3.5, 1)
 dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 5, 2)
-dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6, 2)
+dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6.5, 2)
 dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 4, 1)
 dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
 dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
 
 # Note: means are typically underestimated
-print('---')
+print("Control Means")
 mean(dCQ1$ControlQ1)
 mean(dCQ2$ControlQ2)
 mean(dCQ3$ControlQ3)
@@ -463,13 +421,13 @@ addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
   
   row = getRowByTreatmentCol(treatmentNum, treatmentMetadata)
   
-  dt$LeftName = row$LeftName
+  dt$LeftPersonName = row$LeftPersonName
   dt$LeftPersonRace = row$LeftPersonRace
   dt$LeftPersonGender = row$LeftPersonGender
   dt$LeftPersonRaceGender = row$LeftPersonRaceGender
   dt$LeftPersonResumeId = row$LeftPersonResumeId
     
-  dt$RightName = row$RightName
+  dt$RightPersonName = row$RightPersonName
   dt$RightPersonRace = row$RightPersonRace
   dt$RightPersonGender = row$RightPersonGender
   dt$RightPersonRaceGender = row$RightPersonRaceGender
@@ -481,8 +439,20 @@ addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
 addControlMetadataToDataset <- function(dt, controlNum) {
   
   row = getRowByControlCol(controlNum, controlBinding)
-  dt$LeftResumeId = row$LeftResumeId
-  dt$RightResumeId = row$RightResumeId
+
+  # only resume ID is available in the control group (by design)
+  dt$LeftPersonName = NA
+  dt$LeftPersonRace = NA
+  dt$LeftPersonGender = NA
+  dt$LeftPersonRaceGender = NA
+  dt$LeftPersonResumeId = row$LeftPersonResumeId
+  
+  # only resume ID is available in the control group (by design)
+  dt$RightPersonName = NA
+  dt$RightPersonRace = NA
+  dt$RightPersonGender = NA
+  dt$RightPersonRaceGender = NA
+  dt$RightPersonResumeId = row$RightPersonResumeId
   
   return(dt)
 }
@@ -503,9 +473,120 @@ dCQ6 = addControlMetadataToDataset(dCQ6, 6)
 
 ```
 
-```{r}
-#head(dTQ1)
-#head(dCQ1)
+```{r, Finally we merge the treatment and control datasets, question by question}
+# First, we notice that the 2 datasets dont have the same columns
+print("Before convergence")
+identical(colnames(dTQ1), colnames(dCQ1))
+# Since the "Question columns" are named like "TimeFC_TreatmentQ1" in the treatment set and "TimeFC_ControlQ1" in the control set
+# Thus we snap to naming these as "TimeFCQ" in both treatment and control. We add a dedicated column for Question Number as well to differentiate.
+# The same naming convention goes for other columns - TimePS, TimeLS, TimeCC etc.
+
+convergeTreatmentColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_TreatmentQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_TreatmentQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_TreatmentQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_TreatmentQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("TreatmentQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+convergeControlColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_ControlQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_ControlQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_ControlQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_ControlQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("ControlQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+dTQ1 = convergeTreatmentColumns(dTQ1, 1)
+dCQ1 = convergeControlColumns(dCQ1, 1)
+
+# now the test should pass 
+print("After convergence")
+identical(colnames(dTQ1), colnames(dCQ1))
+
+# do the same for other questions
+
+dTQ2 = convergeTreatmentColumns(dTQ2, 2)
+dCQ2 = convergeControlColumns(dCQ2, 2)
+
+dTQ3 = convergeTreatmentColumns(dTQ3, 3)
+dCQ3 = convergeControlColumns(dCQ3, 3)
+
+dTQ4 = convergeTreatmentColumns(dTQ4, 4)
+dCQ4 = convergeControlColumns(dCQ4, 4)
+
+dTQ5 = convergeTreatmentColumns(dTQ5, 5)
+dCQ5 = convergeControlColumns(dCQ5, 5)
+
+dTQ6 = convergeTreatmentColumns(dTQ6, 6)
+dCQ6 = convergeControlColumns(dCQ6, 6)
+
+# sanity check on column names for all datasets
+identical(colnames(dTQ2), colnames(dCQ2))
+identical(colnames(dTQ3), colnames(dCQ3))
+identical(colnames(dTQ4), colnames(dCQ4))
+identical(colnames(dTQ5), colnames(dCQ5))
+identical(colnames(dTQ6), colnames(dCQ6))
+
+# now that we have converged on column names, we should be able to merge all data sets in row major format
+appendAllDataTables <- function(tableList) {
+  obj <- deparse(substitute(tableList[1]))
+  assign(obj, value = data.table::rbindlist(tableList), envir = .GlobalEnv)
+}
+  
+dataset = appendAllDataTables(list(dTQ1, dTQ2, dTQ3, dTQ4, dTQ5, dTQ6, dCQ1, dCQ2, dCQ3, dCQ4, dCQ5, dCQ6))
 ```
 
+```{r}
+# AgeBin is a feature of interest for us, which tells us which age group the respondent belongs to
+# We will infer this from the YearOfBirth variable
+
+# First convert the variable to numeric
+dataset$YearOfBirth = as.numeric(dataset$YearOfBirth)
+# Get current age
+dataset$Age = as.integer(format(Sys.Date(), "%Y")) - dataset$YearOfBirth
+# Add a column called AgeBin
+dataset$AgeBin = "NA"
+
+# TODO: clean up - probably a better way to implement this
+AssignAgeBin <- function(dt) {
+  
+  for (i in 1:nrow(dt)) {
+    
+          # we were able to parse the year as an int
+          if (!is.na(dt[i]$Age) & is.numeric(dt[i]$Age) & dt[i]$Age > 0 & (floor(log10(dt[i]$YearOfBirth)) + 1) == 4) {
+              # valid age, assign to category
+              # we will keep things simple and have 0-12, 12-25, 25-40, 40-60, 60+
+              if (dt[i]$Age <= 12) {
+                dt[i]$AgeBin = "Child"
+              } else if (dt[i]$Age <= 25) {
+                dt[i]$AgeBin = "Student"
+              } else if (dt[i]$Age <= 40) {
+                dt[i]$AgeBin = "Adult"
+              } else if (dt[i]$Age <= 60) {
+                dt[i]$AgeBin = "MiddleAge"
+              } else if (dt[i]$Age > 60) {
+                dt[i]$AgeBin = "Senior"
+              } else {
+                dt[i]$AgeBin = NA
+              }
+          
+          }
+          else {
+            # assign to NA
+            dt[i]$AgeBin = NA
+          }
+    
+  } # end of for loop
+  
+  return(dt)
+}
+
+
+dataset = AssignAgeBin(dataset)
+```
 

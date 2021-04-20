@@ -3,297 +3,13 @@ Experiments and Causality: W241 Final Project Coast Guards
 Hanyu, Brendan and Abhi
 4/2021
 
-``` r
-library(data.table)
-library(sandwich)
-library(lmtest)
-library(knitr)
-library(stargazer)
-library(dplyr)
-```
-
 ## Feature Engineering
 
 ``` r
-library(data.table)
-library(lmtest)
-library(sandwich)
-library(stargazer)
-library(dplyr)
+d <- fread("data.csv",  na.strings=c("","NA"))
+
+# head(d)
 ```
-
-``` r
-d <- fread("data.csv")
-
-head(d)
-```
-
-    ##          StartDate         EndDate   ResponseType     IPAddress Progress
-    ## 1: 3/29/2021 10:59 3/29/2021 11:05 Survey Preview                    100
-    ## 2: 3/30/2021 11:40 3/30/2021 12:30 Survey Preview                    100
-    ## 3: 3/30/2021 13:11 3/30/2021 13:21 Survey Preview                    100
-    ## 4: 3/30/2021 14:58 3/30/2021 15:01     IP Address 136.50.29.235      100
-    ## 5: 3/30/2021 15:40 3/30/2021 16:31 Survey Preview                    100
-    ## 6: 3/30/2021 18:03 3/30/2021 19:22 Survey Preview                    100
-    ##    DurationSeconds Finished    RecordedDate        ResponseID LocationLatitude
-    ## 1:             361     TRUE 3/29/2021 11:05 R_3kpkeubEVJMXVeY         37.89220
-    ## 2:            2956     TRUE 3/30/2021 12:30 R_2rORoun447CrzQB         37.89220
-    ## 3:             621     TRUE 3/30/2021 13:21 R_2QSquguoMN5Dj7A         37.49670
-    ## 4:             193     TRUE 3/30/2021 15:01 R_u1yNIpPNbXY8GXv         29.45509
-    ## 5:            3098     TRUE 3/30/2021 16:31 R_2Yn2e6TZ2jGGDgh         25.73489
-    ## 6:            4711     TRUE 3/30/2021 19:22 R_V3IqeSnvscmn2Mx         47.55791
-    ##    LocationLongitude DistributionChannel UserLanguage YearOfBirth
-    ## 1:         -122.2729             preview           EN            
-    ## 2:         -122.2729             preview           EN            
-    ## 3:         -122.2665             preview           EN        1986
-    ## 4:          -98.6498           anonymous           EN        1985
-    ## 5:          -80.2228             preview           EN        1991
-    ## 6:         -122.1633             preview           EN       India
-    ##    GenderCategory Gender IsEnglishFirstLanguage               Race RaceOther
-    ## 1:                                                 Native American          
-    ## 2:                                                                          
-    ## 3:  Cisgender Man                           Yes              Asian          
-    ## 4:  Cisgender Man                           Yes Non-Hispanic White          
-    ## 5:  Cisgender Man                           Yes Non-Hispanic White          
-    ## 6:  Cisgender Man                            No              Asian          
-    ##    AbleToAnswerCountryOfResidence       CountryOfResidence StateOfResidence
-    ## 1:                                                                         
-    ## 2:                                                                         
-    ## 3:                            Yes United States of America       California
-    ## 4:                            Yes United States of America    Massachusetts
-    ## 5:                            Yes United States of America          Florida
-    ## 6:                            Yes United States of America       Washington
-    ##    RoleAtBerkeley IsTransferStudent YearsAtBerkeley DidEarnMoneyLastYear
-    ## 1:                                                                      
-    ## 2:                                                                      
-    ## 3:                                                                   Yes
-    ## 4:                                                                    No
-    ## 5:                                                                   Yes
-    ## 6:                                                                   Yes
-    ##      EmploymentStatus       IncomeIn2020                 HighestDegreeReceived
-    ## 1:                                                                            
-    ## 2:                                                                            
-    ## 3: Employed full time  $60,000 - $69,999 Advanced degree (Master's, Doctorate)
-    ## 4:            Student                                             Some college
-    ## 5: Employed full time  $70,000 - $79,999                     Bachelor's degree
-    ## 6: Employed full time More than $150,000 Advanced degree (Master's, Doctorate)
-    ##    PoliticalAffiliation ReligiousAffliation ReligiousAffliationOther
-    ## 1:                           Roman Catholic                         
-    ## 2:                                                                  
-    ## 3:                Other Atheist or agnostic                         
-    ## 4:                Other Atheist or agnostic                         
-    ## 5:             Democrat              Jewish                         
-    ## 6:                Other               Hindu                         
-    ##    ReligiousAffliationOther2 BookFormatPurchasedMostOften
-    ## 1:                                                       
-    ## 2:                                                       
-    ## 3:                                 I don't purchase books
-    ## 4:                                           I buy ebooks
-    ## 5:                                             I buy both
-    ## 6:                                   I buy physical books
-    ##    FrequencySocialMediaAccess FrequencySocialMediaPosting
-    ## 1:                                                       
-    ## 2:                                                       
-    ## 3:                     Weekly                      Weekly
-    ## 4:       More than once a day                       Daily
-    ## 5:       More than once a day            Less than Weekly
-    ## 6:                     Weekly            Less than Weekly
-    ##    TimeFC_FrequencySocialMediaPosting TimeLC_FrequencySocialMediaPosting
-    ## 1:                                 NA                                 NA
-    ## 2:                             20.318                             27.299
-    ## 3:                              1.650                              2.569
-    ## 4:                                 NA                                 NA
-    ## 5:                              4.690                             10.335
-    ## 6:                             12.111                             20.623
-    ##    TimePS_FrequencySocialMediaPosting TimeCC_FrequencySocialMediaPosting
-    ## 1:                                 NA                                 NA
-    ## 2:                             29.076                                  2
-    ## 3:                              4.129                                  2
-    ## 4:                                 NA                                 NA
-    ## 5:                             15.422                                  2
-    ## 6:                             22.330                                  2
-    ##              ClassLevel            GenderCGSurvey              RaceCGSurvey
-    ## 1:                                                                         
-    ## 2:           Fresh/Soph      Prefer not to answer                     White
-    ## 3:                Jr/Sr Non-binary / third gender Black or African American
-    ## 4: Prefer not to answer                      Male               White,Asian
-    ## 5:       Grad/Post-Grad                      Male                     White
-    ## 6:       Grad/Post-Grad                      Male                     Asian
-    ##           HasServedInCG HasServedInAnyOtherUniformedService
-    ## 1:                                                         
-    ## 2:                   No                                  No
-    ## 3: Prefer not to answer                                 Yes
-    ## 4:                  Yes                Prefer not to answer
-    ## 5:                   No                                  No
-    ## 6:                   No                                  No
-    ##    PlaceboPreTestColleagueAffinity TimeFC_Intro TimeLC_Intro TimePS_Intro
-    ## 1:                                           NA           NA           NA
-    ## 2:               Like a great deal       24.082       51.220       52.363
-    ## 3:                   Like somewhat        1.657        8.757       11.707
-    ## 4:                   Like somewhat        1.200        9.544       10.684
-    ## 5:                   Like somewhat        1.514       17.319       22.490
-    ## 6:               Like a great deal        2.352       49.812       51.767
-    ##    TimeCC_Intro TimeFC_Intro2 TimeLC_Intro2 TimePS_Intro2 TimeCC_Intro2
-    ## 1:           NA            NA            NA            NA            NA
-    ## 2:            6        47.122        58.574        68.850             3
-    ## 3:            7         1.561         1.911         2.533             2
-    ## 4:            7         0.000         0.000         1.405             0
-    ## 5:            7         0.000         0.000        26.883             0
-    ## 6:           11         0.000         0.000        54.712             0
-    ##    PracticeQCGComparison TimeFC_PracticeQCGComparison
-    ## 1:                    NA                           NA
-    ## 2:                     0                       39.974
-    ## 3:                     0                        2.960
-    ## 4:                     0                        0.000
-    ## 5:                     0                        0.000
-    ## 6:                     0                       52.950
-    ##    TimeLC_PracticeQCGComparison TimePS_PracticeQCGComparison
-    ## 1:                           NA                           NA
-    ## 2:                       61.745                       62.569
-    ## 3:                        4.103                        7.411
-    ## 4:                        0.000                        1.105
-    ## 5:                        0.000                       29.675
-    ## 6:                       52.950                       54.334
-    ##    TimeCC_PracticeQCGComparison TreatmentQ1 TimeFC_TreatmentQ1
-    ## 1:                           NA          NA                 NA
-    ## 2:                            3          NA                 NA
-    ## 3:                            3           0                  0
-    ## 4:                            0           0                  0
-    ## 5:                            0          NA                 NA
-    ## 6:                            1          NA                 NA
-    ##    TimeLC_TreatmentQ1 TimePS_TreatmentQ1 TimeCC_TreatmentQ1 TreatmentQ2
-    ## 1:                 NA                 NA                 NA          NA
-    ## 2:                 NA                 NA                 NA          NA
-    ## 3:                  0              1.495                  0           0
-    ## 4:                  0              0.605                  0           0
-    ## 5:                 NA                 NA                 NA          NA
-    ## 6:                 NA                 NA                 NA          NA
-    ##    TimeFC_TreatmentQ2 TimeLC_TreatmentQ2 TimePS_TreatmentQ2 TimeCC_TreatmentQ2
-    ## 1:                 NA                 NA                 NA                 NA
-    ## 2:                 NA                 NA                 NA                 NA
-    ## 3:              2.554              3.165              4.306                  2
-    ## 4:              0.000              0.000              0.699                  0
-    ## 5:                 NA                 NA                 NA                 NA
-    ## 6:                 NA                 NA                 NA                 NA
-    ##    TreatmentQ3 TimeFC_TreatmentQ3 TimeLC_TreatmentQ3 TimePS_TreatmentQ3
-    ## 1:          NA                 NA                 NA                 NA
-    ## 2:          NA                 NA                 NA                 NA
-    ## 3:           0                  0                  0              1.607
-    ## 4:           0                  0                  0              0.714
-    ## 5:          NA                 NA                 NA                 NA
-    ## 6:          NA                 NA                 NA                 NA
-    ##    TimeCC_TreatmentQ3 TreatmentQ4 TimeFC_TreatmentQ4 TimeLC_TreatmentQ4
-    ## 1:                 NA          NA                 NA                 NA
-    ## 2:                 NA          NA                 NA                 NA
-    ## 3:                  0           0              2.247              2.953
-    ## 4:                  0           0              0.000              0.000
-    ## 5:                 NA          NA                 NA                 NA
-    ## 6:                 NA          NA                 NA                 NA
-    ##    TimePS_TreatmentQ4 TimeCC_TreatmentQ4 TreatmentQ5 TimeFC_TreatmentQ5
-    ## 1:                 NA                 NA          NA                 NA
-    ## 2:                 NA                 NA          NA                 NA
-    ## 3:              5.046                  2           0                  0
-    ## 4:              0.768                  0           0                  0
-    ## 5:                 NA                 NA          NA                 NA
-    ## 6:                 NA                 NA          NA                 NA
-    ##    TimeLC_TreatmentQ5 TimePS_TreatmentQ5 TimeCC_TreatmentQ5 TreatmentQ6
-    ## 1:                 NA                 NA                 NA          NA
-    ## 2:                 NA                 NA                 NA          NA
-    ## 3:                  0              0.851                  0           0
-    ## 4:                  0              0.966                  0           0
-    ## 5:                 NA                 NA                 NA          NA
-    ## 6:                 NA                 NA                 NA          NA
-    ##    TimeFC_TreatmentQ6 TimeLC_TreatmentQ6 TimePS_TreatmentQ6 TimeCC_TreatmentQ6
-    ## 1:                 NA                 NA                 NA                 NA
-    ## 2:                 NA                 NA                 NA                 NA
-    ## 3:                  0                  0              1.355                  0
-    ## 4:                  0                  0              0.799                  0
-    ## 5:                 NA                 NA                 NA                 NA
-    ## 6:                 NA                 NA                 NA                 NA
-    ##    ControlQ1 TimeFC_ControlQ1 TimeLC_ControlQ1 TimePS_ControlQ1
-    ## 1:        NA               NA               NA               NA
-    ## 2:         0           38.169           40.097           46.181
-    ## 3:        NA               NA               NA               NA
-    ## 4:        NA               NA               NA               NA
-    ## 5:         0           23.005           26.580           28.616
-    ## 6:         0            1.936            1.936            3.178
-    ##    TimeCC_ControlQ1 ControlQ2 TimeFC_ControlQ2 TimeLC_ControlQ2
-    ## 1:               NA        NA               NA               NA
-    ## 2:                4         0           10.362           11.260
-    ## 3:               NA        NA               NA               NA
-    ## 4:               NA        NA               NA               NA
-    ## 5:                2         0           13.129           13.129
-    ## 6:                1         0            2.320            2.320
-    ##    TimePS_ControlQ2 TimeCC_ControlQ2 ControlQ3 TimeFC_ControlQ3
-    ## 1:               NA               NA        NA               NA
-    ## 2:           12.850                2         0            4.348
-    ## 3:               NA               NA        NA               NA
-    ## 4:               NA               NA        NA               NA
-    ## 5:           29.820                1         0           18.009
-    ## 6:            3.909                1         0           15.285
-    ##    TimeLC_ControlQ3 TimePS_ControlQ3 TimeCC_ControlQ3 ControlQ4
-    ## 1:               NA               NA               NA        NA
-    ## 2:            5.581            7.236                3         0
-    ## 3:               NA               NA               NA        NA
-    ## 4:               NA               NA               NA        NA
-    ## 5:           21.203           23.268                2         0
-    ## 6:           16.160           16.961                2         0
-    ##    TimeFC_ControlQ4 TimeLC_ControlQ4 TimePS_ControlQ4 TimeCC_ControlQ4
-    ## 1:               NA               NA               NA               NA
-    ## 2:            5.515            7.273            8.893                3
-    ## 3:               NA               NA               NA               NA
-    ## 4:               NA               NA               NA               NA
-    ## 5:           78.911           83.224           85.278                5
-    ## 6:            2.219            2.219            3.812                1
-    ##    ControlQ5 TimeFC_ControlQ5 TimeLC_ControlQ5 TimePS_ControlQ5
-    ## 1:        NA               NA               NA               NA
-    ## 2:         0           37.240           41.553           44.113
-    ## 3:        NA               NA               NA               NA
-    ## 4:        NA               NA               NA               NA
-    ## 5:         0           17.811           17.811           44.156
-    ## 6:         0           37.230           37.230           38.977
-    ##    TimeCC_ControlQ5 ControlQ6 TimeFC_ControlQ6 TimeLC_ControlQ6
-    ## 1:               NA        NA               NA               NA
-    ## 2:                4         0           19.124           20.431
-    ## 3:               NA        NA               NA               NA
-    ## 4:               NA        NA               NA               NA
-    ## 5:                1         0           24.197           29.429
-    ## 6:                1         0           77.822           86.594
-    ##    TimePS_ControlQ6 TimeCC_ControlQ6 PlaceboPostTestColleagueAffinity
-    ## 1:               NA               NA                                 
-    ## 2:           22.586                3                Like a great deal
-    ## 3:               NA               NA                    Like somewhat
-    ## 4:               NA               NA         Neither like nor dislike
-    ## 5:           31.440                3                    Like somewhat
-    ## 6:           90.565                2                Like a great deal
-    ##    TimeFC_PlaceboPostTestColleagueAffinity
-    ## 1:                                      NA
-    ## 2:                                      NA
-    ## 3:                                      NA
-    ## 4:                                      NA
-    ## 5:                                      NA
-    ## 6:                                       0
-    ##    TimeLC_PlaceboPostTestColleagueAffinity
-    ## 1:                                      NA
-    ## 2:                                      NA
-    ## 3:                                      NA
-    ## 4:                                      NA
-    ## 5:                                      NA
-    ## 6:                                       0
-    ##    TimePS_PlaceboPostTestColleagueAffinity
-    ## 1:                                      NA
-    ## 2:                                      NA
-    ## 3:                                      NA
-    ## 4:                                      NA
-    ## 5:                                      NA
-    ## 6:                                  20.466
-    ##    TimeCC_PlaceboPostTestColleagueAffinity
-    ## 1:                                      NA
-    ## 2:                                      NA
-    ## 3:                                      NA
-    ## 4:                                      NA
-    ## 5:                                      NA
-    ## 6:                                       0
 
 ``` r
 # display number of columns
@@ -308,6 +24,15 @@ nrow(d[, .(count=.N), by = list(ResponseID)]) == nrow(d)
 ```
 
     ## [1] TRUE
+
+``` r
+d[, .(count=.N), by = list(ResponseType)]
+```
+
+    ##      ResponseType count
+    ## 1: Survey Preview     8
+    ## 2:     IP Address   304
+    ## 3:           Spam     2
 
 ``` r
 d[, .(count=.N), by = list(Finished)]
@@ -351,6 +76,16 @@ getRowByName <- function(name, data) {
   return (data[data$Name == name, ]) 
 }
 
+# gets a row by the field "TreatmentCol" in dataframe "data"
+getRowByTreatmentCol <- function(num, data) {
+  return (data[data$TreatmentCol == paste("TreatmentQ", num, sep=""), ]) 
+}
+
+# gets a row by the field "ControlCol" in dataframe "data"
+getRowByControlCol <- function(num, data) {
+  return (data[data$ControlCol == paste("ControlQ", num, sep=""), ]) 
+}
+
 # gets a row by the field "ResponseID" in dataframe "data"
 getRowByResponseID <- function(responseId, data) {
   return (data[data$ResponseID == responseId, ]) 
@@ -389,6 +124,7 @@ isInvalidRow <- function(data, rowNum) {
 }
 
 # if person was assigned to either treatment or control, but didn't end up answering all questions
+# if person didn't answer any of the questions, then also they are considered an attritor
 isAttritedRow <- function(data, rowNum) {
   cols = getSumControlQNA(data, rowNum) 
   result = (cols < 6 & cols > 0)
@@ -407,6 +143,34 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
   treatmentNa = getSumTreatmentQNA(data, rowNum)
   return ((controlNa > 0 & controlNa < 6) & (treatmentNa > 0 & treatmentNa < 6))
 }
+
+# generating random numbers from low to high for fake treatment/control responses
+generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
+  
+  nums = mean + sd * scale(rnorm(n))
+  # numbers must be 1-5
+  for (i in 1:nrow(nums)) {
+    
+    # arbitrarily choose floor or ceiling for that number (since response must be integer)
+    if(sample(c(0,1), size =1))  {
+      nums[i] = ceiling(nums[i])
+    }
+    else {
+      nums[i] = floor(nums[i]) 
+    }
+    
+    # bound number between 1-7
+    if(nums[i] < low) {
+      nums[i] = low
+    }
+    
+    if(nums[i] > high) {
+      nums[i] = high
+    }
+  }
+  
+  return(nums[1:n])
+}
 ```
 
 ``` r
@@ -421,8 +185,8 @@ nameResumeBinding <- data.table(
 
 ``` r
 treatmentBinding <- data.table(
-  LeftName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
-  RightName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
+  LeftPersonName  = c("Bradley Meyer", "Bradley Meyer", "Bradley Meyer", "Kirsten Schmidt", "Reginald Washington", "Kirsten Schmidt"),
+  RightPersonName = c("Reginald Washington", "Kirsten Schmidt", "Gwendolyn Jackson", "Reginald Washington", "Gwendolyn Jackson", "Gwendolyn Jackson"),
   TreatmentCol = c("TreatmentQ1", "TreatmentQ2", "TreatmentQ3", "TreatmentQ4", "TreatmentQ5", "TreatmentQ6")
 )
 ```
@@ -446,7 +210,7 @@ for (i in 1:n) {
 
 # iterate through left name and fill left person metadata
 for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$LeftName, nameResumeBinding)
+  row <- getRowByName(treatmentMetadata[i]$LeftPersonName, nameResumeBinding)
    
   treatmentMetadata[i]$LeftPersonRace = row$Race
   treatmentMetadata[i]$LeftPersonGender = row$Gender
@@ -456,7 +220,7 @@ for (i in 1:n) {
 
 # iterate through right name and fill right person metadata
 for (i in 1:n) {
-  row <- getRowByName(treatmentMetadata[i]$RightName, nameResumeBinding)
+  row <- getRowByName(treatmentMetadata[i]$RightPersonName, nameResumeBinding)
    
   treatmentMetadata[i]$RightPersonRace = row$Race
   treatmentMetadata[i]$RightPersonGender = row$Gender
@@ -467,8 +231,8 @@ for (i in 1:n) {
 
 ``` r
 controlBinding <- data.table(
-  LeftResumeId  = c(1, 1, 1, 3, 2, 3),
-  RightResumeId = c(2, 3, 4, 2, 4, 4),
+  LeftPersonResumeId  = c(1, 1, 1, 3, 2, 3),
+  RightPersonResumeId = c(2, 3, 4, 2, 4, 4),
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
 ```
@@ -546,6 +310,93 @@ d[, .(count=.N), by = list(IsAttrited)]
     ##    IsAttrited count
     ## 1:       TRUE    33
     ## 2:      FALSE   281
+
+``` r
+# do a sanity check of who we think are "attritors" vs what qualtrics thinks are "attritors"
+responseIDsAttrited = d[IsAttrited == TRUE, ResponseID]
+responseIDsBad = d[Finished == FALSE | ResponseType != "IP Address", ResponseID]
+responseIDsUnFinishedOnly = d[Finished == FALSE, ResponseID]
+
+# there seem to be a mismatch in what we consider attrited vs what Qualtrics thinks is attrited
+length(responseIDsAttrited)
+```
+
+    ## [1] 33
+
+``` r
+length(responseIDsBad)
+```
+
+    ## [1] 40
+
+``` r
+length(responseIDsUnFinishedOnly)
+```
+
+    ## [1] 30
+
+``` r
+# Number of common elements between these sets
+length(intersect(responseIDsAttrited, responseIDsBad))
+```
+
+    ## [1] 29
+
+``` r
+length(intersect(responseIDsAttrited, responseIDsUnFinishedOnly))
+```
+
+    ## [1] 26
+
+``` r
+# setdiff tells us the response IDs that exist in the first list, but dont exist in the 2nd list
+
+print("These are the respondents we think are attritors but Qualtrics thinks are not attritors")
+```
+
+    ## [1] "These are the respondents we think are attritors but Qualtrics thinks are not attritors"
+
+``` r
+setdiff(responseIDsAttrited, responseIDsBad)
+```
+
+    ## [1] "R_1mquxpzqO154HvP" "R_sbzFZuUqtaBaCR3" "R_3PhFt6wfKWlz3LM"
+    ## [4] "R_22SmK7qgpdwWIDV"
+
+``` r
+print("These are the respondents Qualtrics think are attritors but we think are not")
+```
+
+    ## [1] "These are the respondents Qualtrics think are attritors but we think are not"
+
+``` r
+setdiff(responseIDsBad, responseIDsAttrited)
+```
+
+    ##  [1] "R_2rORoun447CrzQB" "R_2QSquguoMN5Dj7A" "R_2Yn2e6TZ2jGGDgh"
+    ##  [4] "R_V3IqeSnvscmn2Mx" "R_scHLCigTnnJHMVb" "R_31vJynnHBul11qv"
+    ##  [7] "R_3fOa4QVxUnOCVUD" "R_zTKeFpVhVNAZPjj" "R_1E6Y207cj3ZVUY0"
+    ## [10] "R_2BlcjDxd8DaWZio" "R_3rJpZq7KiJ8aUqE"
+
+``` r
+setdiff(responseIDsAttrited, responseIDsUnFinishedOnly)
+```
+
+    ## [1] "R_3kpkeubEVJMXVeY" "R_1mquxpzqO154HvP" "R_sbzFZuUqtaBaCR3"
+    ## [4] "R_3Db9GpUuKV9bATZ" "R_2zo1aIOrEzj31Mt" "R_3PhFt6wfKWlz3LM"
+    ## [7] "R_22SmK7qgpdwWIDV"
+
+``` r
+setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
+```
+
+    ## [1] "R_zTKeFpVhVNAZPjj" "R_1E6Y207cj3ZVUY0" "R_2BlcjDxd8DaWZio"
+    ## [4] "R_3rJpZq7KiJ8aUqE"
+
+``` r
+# Examining the list that qualtrics thinks are attritors, we see in fact they are not attritors, so we'll stick to our definition
+# example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
+```
 
 ## Create Datasets to be used
 
@@ -649,138 +500,738 @@ nrow(dCQ5) == nrow(dCQ6)
     ## [1] TRUE
 
 ``` r
-head(dTQ1)
+# head(dTQ1)
 ```
-
-    ##          StartDate         EndDate   ResponseType      IPAddress Progress
-    ## 1: 3/30/2021 13:11 3/30/2021 13:21 Survey Preview                     100
-    ## 2: 3/30/2021 14:58 3/30/2021 15:01     IP Address  136.50.29.235      100
-    ## 3:  3/31/2021 0:27  3/31/2021 0:42 Survey Preview                     100
-    ## 4: 3/31/2021 20:37 3/31/2021 21:34     IP Address   96.250.83.61      100
-    ## 5: 3/31/2021 20:33 3/31/2021 21:41     IP Address 97.114.213.149      100
-    ## 6: 3/31/2021 20:42 3/31/2021 21:58     IP Address   12.169.99.98      100
-    ##    DurationSeconds Finished    RecordedDate        ResponseID LocationLatitude
-    ## 1:             621     TRUE 3/30/2021 13:21 R_2QSquguoMN5Dj7A         37.49670
-    ## 2:             193     TRUE 3/30/2021 15:01 R_u1yNIpPNbXY8GXv         29.45509
-    ## 3:             900     TRUE  3/31/2021 0:42 R_31vJynnHBul11qv         25.04781
-    ## 4:            3383     TRUE 3/31/2021 21:34 R_2WSDtOHMY0iEfyB         40.70329
-    ## 5:            4068     TRUE 3/31/2021 21:41 R_31cuvH38jf2jrSO         35.49080
-    ## 6:            4520     TRUE 3/31/2021 21:58 R_QghTi29Xndqrr6F         36.91020
-    ##    LocationLongitude DistributionChannel UserLanguage YearOfBirth
-    ## 1:         -122.2665             preview           EN        1986
-    ## 2:          -98.6498           anonymous           EN        1985
-    ## 3:          121.5318             preview           EN      Taiwan
-    ## 4:          -74.0039           anonymous           EN        1995
-    ## 5:          -93.4911           anonymous           EN        1978
-    ## 6:         -121.7564           anonymous           EN        1997
-    ##     GenderCategory Gender IsEnglishFirstLanguage               Race RaceOther
-    ## 1:   Cisgender Man                           Yes              Asian          
-    ## 2:   Cisgender Man                           Yes Non-Hispanic White          
-    ## 3:   Cisgender Man                            No              Asian          
-    ## 4:   Cisgender Man                           Yes Non-Hispanic White          
-    ## 5:   Cisgender Man                           Yes Non-Hispanic White          
-    ## 6: Cisgender Woman                           Yes Hispanic or Latino          
-    ##    AbleToAnswerCountryOfResidence       CountryOfResidence StateOfResidence
-    ## 1:                            Yes United States of America       California
-    ## 2:                            Yes United States of America    Massachusetts
-    ## 3:                            Yes United States of America       California
-    ## 4:                            Yes United States of America         New York
-    ## 5:                            Yes United States of America         Arkansas
-    ## 6:                            Yes United States of America       California
-    ##           RoleAtBerkeley IsTransferStudent YearsAtBerkeley DidEarnMoneyLastYear
-    ## 1:                                                                          Yes
-    ## 2:                                                                           No
-    ## 3:      Graduate Student                                                     No
-    ## 4:                 Other                                                    Yes
-    ## 5: Undergraduate Student                No        2nd Year                  Yes
-    ## 6:                 Other                                                    Yes
-    ##      EmploymentStatus      IncomeIn2020                 HighestDegreeReceived
-    ## 1: Employed full time $60,000 - $69,999 Advanced degree (Master's, Doctorate)
-    ## 2:            Student                                            Some college
-    ## 3:            Student                   Advanced degree (Master's, Doctorate)
-    ## 4: Employed full time $50,000 - $59,999                     Bachelor's degree
-    ## 5: Employed part time $20,000 - $29,999                          Some college
-    ## 6: Employed part time $10,000 - $19,999                          Some college
-    ##    PoliticalAffiliation ReligiousAffliation ReligiousAffliationOther
-    ## 1:                Other Atheist or agnostic                         
-    ## 2:                Other Atheist or agnostic                         
-    ## 3:             Democrat Atheist or agnostic                         
-    ## 4:           Republican              Jewish                         
-    ## 5:          Independent          Protestant                         
-    ## 6:             Democrat      Roman Catholic                         
-    ##    ReligiousAffliationOther2 BookFormatPurchasedMostOften
-    ## 1:                                 I don't purchase books
-    ## 2:                                           I buy ebooks
-    ## 3:                                   I buy physical books
-    ## 4:                                   I buy physical books
-    ## 5:                                             I buy both
-    ## 6:                                 I don't purchase books
-    ##    FrequencySocialMediaAccess FrequencySocialMediaPosting           ClassLevel
-    ## 1:                     Weekly                      Weekly                Jr/Sr
-    ## 2:       More than once a day                       Daily Prefer not to answer
-    ## 3:                      Daily            Less than Weekly       Grad/Post-Grad
-    ## 4:                      Daily            Less than Weekly       Grad/Post-Grad
-    ## 5:                      Daily            Less than Weekly           Fresh/Soph
-    ## 6:       More than once a day                       Daily Prefer not to answer
-    ##               GenderCGSurvey                         RaceCGSurvey
-    ## 1: Non-binary / third gender            Black or African American
-    ## 2:                      Male                          White,Asian
-    ## 3:                      Male                                Asian
-    ## 4:                      Male                                White
-    ## 5:                      Male                                White
-    ## 6:                    Female Hispanic, Latinex, or Spanish Origin
-    ##           HasServedInCG HasServedInAnyOtherUniformedService
-    ## 1: Prefer not to answer                                 Yes
-    ## 2:                  Yes                Prefer not to answer
-    ## 3:                   No                                  No
-    ## 4:                   No                                  No
-    ## 5:                   No                                  No
-    ## 6:                   No                                  No
-    ##    PlaceboPreTestColleagueAffinity PracticeQCGComparison
-    ## 1:                   Like somewhat                     0
-    ## 2:                   Like somewhat                     0
-    ## 3:                   Like somewhat                     0
-    ## 4:                   Like somewhat                     0
-    ## 5:                   Like somewhat                     0
-    ## 6:               Like a great deal                     0
-    ##    PlaceboPostTestColleagueAffinity TreatmentAssignment IsAttrited IsNeverTaker
-    ## 1:                    Like somewhat                TRUE      FALSE        FALSE
-    ## 2:         Neither like nor dislike                TRUE      FALSE        FALSE
-    ## 3:                    Like somewhat                TRUE      FALSE        FALSE
-    ## 4:                    Like somewhat                TRUE      FALSE        FALSE
-    ## 5:                    Like somewhat                TRUE      FALSE        FALSE
-    ## 6:         Neither like nor dislike                TRUE      FALSE        FALSE
-    ##    TreatmentQ1 TimeFC_TreatmentQ1 TimeLC_TreatmentQ1 TimePS_TreatmentQ1
-    ## 1:           0              0.000              0.000              1.495
-    ## 2:           0              0.000              0.000              0.605
-    ## 3:           0              0.000              0.000              1.502
-    ## 4:           0             68.865             68.865             70.682
-    ## 5:           0             30.063             30.063             34.215
-    ## 6:           0              4.052              4.052              6.397
-    ##    TimeCC_TreatmentQ1
-    ## 1:                  0
-    ## 2:                  0
-    ## 3:                  0
-    ## 4:                  1
-    ## 5:                  1
-    ## 6:                  1
 
 ### Assign Fake Treatment and Control Reponses (Optional)
 
 > As we are aware, we had an error in the procedure around collecting
 > data for our participants. Thus we will overwrite the data with fake
 > responses so as to prove out our analysis methodology. Below we choose
-> a `random number generator to generate responses from 1-5`. The rubric
+> a `random number generator to generate responses from 1-7`. The rubric
 > is as follows:
 
 > `1: Strongly prefer left resume`
 
-> `2: Slightly prefer left resume`
+> `2: Prefer left resume`
 
-> `3: Neutral (no preference on left or right resume)`
+> `3: Slightly prefer left resume`
 
-> `4: Slightly prefer right resume`
+> `4: Neutral (no preference on left or right resume)`
 
-> `5: Strongly prefer right resume`
+> `5: Slightly prefer right resume`
+
+> `6: Prefer right resume`
+
+> `7: Strongly prefer right resume`
+
+``` r
+# We deliberately give fake treatment effects
+dTQ1$TreatmentQ1 = generateRandomIntNums(nrow(dTQ1), 1, 1) # WM BM
+dTQ2$TreatmentQ2 = generateRandomIntNums(nrow(dTQ2), 2, 1) # WM WF
+dTQ3$TreatmentQ3 = generateRandomIntNums(nrow(dTQ3), 5, 1) # WM BF
+dTQ4$TreatmentQ4 = generateRandomIntNums(nrow(dTQ4), 4, 1) # WF BM
+dTQ5$TreatmentQ5 = generateRandomIntNums(nrow(dTQ5), 4, 1) # BM BF
+dTQ6$TreatmentQ6 = generateRandomIntNums(nrow(dTQ6), 2, 1) # WF BF
+
+# Note: means are typically underestimated
+print("Treatment Means")
+```
+
+    ## [1] "Treatment Means"
+
+``` r
+mean(dTQ1$TreatmentQ1)
+```
+
+    ## [1] 1.446043
+
+``` r
+mean(dTQ2$TreatmentQ2)
+```
+
+    ## [1] 2.079137
+
+``` r
+mean(dTQ3$TreatmentQ3)
+```
+
+    ## [1] 5.05036
+
+``` r
+mean(dTQ4$TreatmentQ4)
+```
+
+    ## [1] 3.892086
+
+``` r
+mean(dTQ5$TreatmentQ5)
+```
+
+    ## [1] 4.064748
+
+``` r
+mean(dTQ6$TreatmentQ6)
+```
+
+    ## [1] 2.143885
+
+``` r
+# We expect the control group to have no difference in left / right resumes (on average)
+dCQ1$ControlQ1 = generateRandomIntNums(nrow(dCQ1), 3.5, 1)
+dCQ2$ControlQ2 = generateRandomIntNums(nrow(dCQ2), 5, 2)
+dCQ3$ControlQ3 = generateRandomIntNums(nrow(dCQ3), 6.5, 2)
+dCQ4$ControlQ4 = generateRandomIntNums(nrow(dCQ4), 4, 1)
+dCQ5$ControlQ5 = generateRandomIntNums(nrow(dCQ5), 4, 1)
+dCQ6$ControlQ6 = generateRandomIntNums(nrow(dCQ6), 5, 1)
+
+# Note: means are typically underestimated
+print("Control Means")
+```
+
+    ## [1] "Control Means"
+
+``` r
+mean(dCQ1$ControlQ1)
+```
+
+    ## [1] 3.538462
+
+``` r
+mean(dCQ2$ControlQ2)
+```
+
+    ## [1] 4.895105
+
+``` r
+mean(dCQ3$ControlQ3)
+```
+
+    ## [1] 5.853147
+
+``` r
+mean(dCQ4$ControlQ4)
+```
+
+    ## [1] 3.958042
+
+``` r
+mean(dCQ5$ControlQ5)
+```
+
+    ## [1] 4.041958
+
+``` r
+mean(dCQ6$ControlQ6)
+```
+
+    ## [1] 4.944056
+
+``` r
+addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
+  
+  row = getRowByTreatmentCol(treatmentNum, treatmentMetadata)
+  
+  dt$LeftPersonName = row$LeftPersonName
+  dt$LeftPersonRace = row$LeftPersonRace
+  dt$LeftPersonGender = row$LeftPersonGender
+  dt$LeftPersonRaceGender = row$LeftPersonRaceGender
+  dt$LeftPersonResumeId = row$LeftPersonResumeId
+    
+  dt$RightPersonName = row$RightPersonName
+  dt$RightPersonRace = row$RightPersonRace
+  dt$RightPersonGender = row$RightPersonGender
+  dt$RightPersonRaceGender = row$RightPersonRaceGender
+  dt$RightPersonResumeId = row$RightPersonResumeId
+  
+  return(dt)
+}
+
+addControlMetadataToDataset <- function(dt, controlNum) {
+  
+  row = getRowByControlCol(controlNum, controlBinding)
+
+  # only resume ID is available in the control group (by design)
+  dt$LeftPersonName = NA
+  dt$LeftPersonRace = NA
+  dt$LeftPersonGender = NA
+  dt$LeftPersonRaceGender = NA
+  dt$LeftPersonResumeId = row$LeftPersonResumeId
+  
+  # only resume ID is available in the control group (by design)
+  dt$RightPersonName = NA
+  dt$RightPersonRace = NA
+  dt$RightPersonGender = NA
+  dt$RightPersonRaceGender = NA
+  dt$RightPersonResumeId = row$RightPersonResumeId
+  
+  return(dt)
+}
+
+dTQ1 = addTreatmentMetadataToDataset(dTQ1, 1)
+dTQ2 = addTreatmentMetadataToDataset(dTQ2, 2)
+dTQ3 = addTreatmentMetadataToDataset(dTQ3, 3)
+dTQ4 = addTreatmentMetadataToDataset(dTQ4, 4)
+dTQ5 = addTreatmentMetadataToDataset(dTQ5, 5)
+dTQ6 = addTreatmentMetadataToDataset(dTQ6, 6)
+
+dCQ1 = addControlMetadataToDataset(dCQ1, 1)
+dCQ2 = addControlMetadataToDataset(dCQ2, 2)
+dCQ3 = addControlMetadataToDataset(dCQ3, 3)
+dCQ4 = addControlMetadataToDataset(dCQ4, 4)
+dCQ5 = addControlMetadataToDataset(dCQ5, 5)
+dCQ6 = addControlMetadataToDataset(dCQ6, 6)
+```
+
+``` r
+# First, we notice that the 2 datasets dont have the same columns
+print("Before convergence")
+```
+
+    ## [1] "Before convergence"
+
+``` r
+identical(colnames(dTQ1), colnames(dCQ1))
+```
+
+    ## [1] FALSE
+
+``` r
+# Since the "Question columns" are named like "TimeFC_TreatmentQ1" in the treatment set and "TimeFC_ControlQ1" in the control set
+# Thus we snap to naming these as "TimeFCQ" in both treatment and control. We add a dedicated column for Question Number as well to differentiate.
+# The same naming convention goes for other columns - TimePS, TimeLS, TimeCC etc.
+
+convergeTreatmentColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_TreatmentQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_TreatmentQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_TreatmentQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_TreatmentQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("TreatmentQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+convergeControlColumns <- function(dt, qNum) {
+  names(dt)[names(dt) == paste("TimeFC_ControlQ", qNum, sep = "")] <- paste("TimeFCQ")
+  names(dt)[names(dt) == paste("TimeLC_ControlQ", qNum, sep = "")] <- paste("TimeLCQ")
+  names(dt)[names(dt) == paste("TimePS_ControlQ", qNum, sep = "")] <- paste("TimePSQ")
+  names(dt)[names(dt) == paste("TimeCC_ControlQ", qNum, sep = "")] <- paste("TimeCCQ")
+  names(dt)[names(dt) == paste("ControlQ", qNum, sep = "")] <- paste("ResponseQ")
+  dt$QNum = qNum
+  return(dt)
+}
+
+dTQ1 = convergeTreatmentColumns(dTQ1, 1)
+dCQ1 = convergeControlColumns(dCQ1, 1)
+
+# now the test should pass 
+print("After convergence")
+```
+
+    ## [1] "After convergence"
+
+``` r
+identical(colnames(dTQ1), colnames(dCQ1))
+```
+
+    ## [1] TRUE
+
+``` r
+# do the same for other questions
+
+dTQ2 = convergeTreatmentColumns(dTQ2, 2)
+dCQ2 = convergeControlColumns(dCQ2, 2)
+
+dTQ3 = convergeTreatmentColumns(dTQ3, 3)
+dCQ3 = convergeControlColumns(dCQ3, 3)
+
+dTQ4 = convergeTreatmentColumns(dTQ4, 4)
+dCQ4 = convergeControlColumns(dCQ4, 4)
+
+dTQ5 = convergeTreatmentColumns(dTQ5, 5)
+dCQ5 = convergeControlColumns(dCQ5, 5)
+
+dTQ6 = convergeTreatmentColumns(dTQ6, 6)
+dCQ6 = convergeControlColumns(dCQ6, 6)
+
+# sanity check on column names for all datasets
+identical(colnames(dTQ2), colnames(dCQ2))
+```
+
+    ## [1] TRUE
+
+``` r
+identical(colnames(dTQ3), colnames(dCQ3))
+```
+
+    ## [1] TRUE
+
+``` r
+identical(colnames(dTQ4), colnames(dCQ4))
+```
+
+    ## [1] TRUE
+
+``` r
+identical(colnames(dTQ5), colnames(dCQ5))
+```
+
+    ## [1] TRUE
+
+``` r
+identical(colnames(dTQ6), colnames(dCQ6))
+```
+
+    ## [1] TRUE
+
+``` r
+# now that we have converged on column names, we should be able to merge all data sets in row major format
+appendAllDataTables <- function(tableList) {
+  obj <- deparse(substitute(tableList[1]))
+  assign(obj, value = data.table::rbindlist(tableList), envir = .GlobalEnv)
+}
+  
+dataset = appendAllDataTables(list(dTQ1, dTQ2, dTQ3, dTQ4, dTQ5, dTQ6, dCQ1, dCQ2, dCQ3, dCQ4, dCQ5, dCQ6))
+```
+
+    ## Warning in assign(obj, value = data.table::rbindlist(tableList), envir
+    ## = .GlobalEnv): only the first element is used as variable name
+
+``` r
+# AgeBin is a feature of interest for us, which tells us which age group the respondent belongs to
+# We will infer this from the YearOfBirth variable
+
+# First convert the variable to numeric
+dataset$YearOfBirth = as.numeric(dataset$YearOfBirth)
+```
+
+    ## Warning: NAs introduced by coercion
+
+``` r
+# Get current age
+dataset$Age = as.integer(format(Sys.Date(), "%Y")) - dataset$YearOfBirth
+# Add a column called AgeBin
+dataset$AgeBin = "NA"
+
+# TODO: clean up - probably a better way to implement this
+AssignAgeBin <- function(dt) {
+  
+  for (i in 1:nrow(dt)) {
+    
+          # we were able to parse the year as an int
+          if (!is.na(dt[i]$Age) & is.numeric(dt[i]$Age) & dt[i]$Age > 0 & (floor(log10(dt[i]$YearOfBirth)) + 1) == 4) {
+              # valid age, assign to category
+              # we will keep things simple and have 0-12, 12-25, 25-40, 40-60, 60+
+              if (dt[i]$Age <= 12) {
+                dt[i]$AgeBin = "Child"
+              } else if (dt[i]$Age <= 25) {
+                dt[i]$AgeBin = "Student"
+              } else if (dt[i]$Age <= 40) {
+                dt[i]$AgeBin = "Adult"
+              } else if (dt[i]$Age <= 60) {
+                dt[i]$AgeBin = "MiddleAge"
+              } else if (dt[i]$Age > 60) {
+                dt[i]$AgeBin = "Senior"
+              } else {
+                dt[i]$AgeBin = NA
+              }
+          
+          }
+          else {
+            # assign to NA
+            dt[i]$AgeBin = NA
+          }
+    
+  } # end of for loop
+  
+  return(dt)
+}
+
+
+dataset = AssignAgeBin(dataset)
+```
+
+## Feature Analysis
 
 ## Analysis
+
+``` r
+tryCatch(
+  {
+    nrow(dataset)
+  },
+  error = function(e) {
+    print("dataset variable not found, cannot proceed further!")
+    stop(e)
+  }
+)
+```
+
+    ## [1] 1692
+
+``` r
+# load Q1 data - WM vs BM
+Q1 = dataset[QNum == 1 & IsAttrited == FALSE & IsNeverTaker == FALSE, ]
+```
+
+``` r
+# Lets perform the difference in differences manually for Q1 and then verify it with a regression model
+A = mean(Q1[TreatmentAssignment == TRUE, ResponseQ])
+B = mean(Q1[TreatmentAssignment == FALSE, ResponseQ])
+```
+
+``` r
+mod_q1 = lm(ResponseQ ~ TreatmentAssignment, data = Q1)
+stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression")
+```
+
+    ## 
+    ## Differences in Differences via Regression
+    ## ===============================================
+    ##                         Dependent variable:    
+    ##                     ---------------------------
+    ##                              ResponseQ         
+    ## -----------------------------------------------
+    ## TreatmentAssignment          -2.089***         
+    ##                               (0.112)          
+    ##                                                
+    ## Constant                     3.535***          
+    ##                               (0.079)          
+    ##                                                
+    ## -----------------------------------------------
+    ## Observations                    281            
+    ## R2                             0.555           
+    ## Adjusted R2                    0.554           
+    ## Residual Std. Error      0.938 (df = 279)      
+    ## F Statistic          348.175*** (df = 1; 279)  
+    ## ===============================================
+    ## Note:               *p<0.1; **p<0.05; ***p<0.01
+
+> From the above, we notice that the treatment coefficient value from
+> the regression `-2.0891681` exactly matches what we obtained from our
+> manual differences in differences model. `A - B =` `-2.0891681`. There
+> seems to be a favorable significant effect for white males since the
+> DiD result is negative.
+
+> Next, we attempt to add covariates into the analysis. We can think of
+> our covariates belonging to different categories - `demographic`,
+> `profession`, and `behaviorial`.
+
+> We are interested in a few `demographic` covariates - namely, `Race`,
+> `GenderCGSurvey`, `PoliticalAffiliation`, `ReligiousAffliation`,
+> `ClassLevel`, `AgeBin`, `IsEnglishFirstLanguage`,
+> `CountryOfResidence`, `StateOfResidence`
+
+> Next we are also interested in a few `profession` related covariates -
+> namely `HasServedInCG`, `HasServedInAnyOtherUniformedService`,
+> `HighestDegreeReceived`, `EmploymentStatus`, `DidEarnMoneyLastYear`,
+> `RoleAtBerkeley`, `YearsAtBerkeley`, `IncomeIn2020`
+
+> Lastly, we may be interested in few `behavior` related covariates -
+> namely `FrequencySocialMediaAccess`, `FrequencySocialMediaPosting`,
+> `BookFormatPurchasedMostOften`. There is weak interest in this
+> category as we suspect there is little effect of these behavioral
+> forces that may be affecting resume comparison. We will explore them
+> nevertheless.
+
+``` r
+Q_WMBM = dataset[QNum == 1 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM BM
+Q_WMWF = dataset[QNum == 2 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM WF
+Q_WMBF = dataset[QNum == 3 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM BF
+Q_WFBM = dataset[QNum == 4 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF BM
+Q_BMBF = dataset[QNum == 5 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # BM BF
+Q_WFBF = dataset[QNum == 6 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF BF
+
+data_list = list(Q_WMBM, Q_WMWF, Q_WMBF, Q_WFBM, Q_BMBF, Q_WFBF)
+```
+
+### Covariate Analysis (Demographic Variables)
+
+``` r
+mod_dmg = list()
+
+for (i in 1:length(data_list)) {
+  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin, data = data_list[[i]])
+}
+
+stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regression (Demographic Covariates)")
+```
+
+    ## 
+    ## Differences in Differences via Regression (Demographic Covariates)
+    ## =================================================================================================
+    ##                                                            Dependent variable:                   
+    ##                                         ---------------------------------------------------------
+    ##                                                                 ResponseQ                        
+    ##                                            (1)       (2)       (3)      (4)      (5)       (6)   
+    ## -------------------------------------------------------------------------------------------------
+    ## TreatmentAssignment                     -2.083*** -2.665*** -0.796***  -0.035   0.022   -2.781***
+    ##                                          (0.119)   (0.184)   (0.158)  (0.140)  (0.148)   (0.137) 
+    ##                                                                                                  
+    ## RaceBlack or African American             0.307    -0.317     0.180    0.393    0.396     0.378  
+    ##                                          (0.344)   (0.532)   (0.456)  (0.404)  (0.427)   (0.396) 
+    ##                                                                                                  
+    ## RaceHispanic or Latino                   -0.220    -0.216    -0.008    -0.285   0.030   0.773*** 
+    ##                                          (0.232)   (0.359)   (0.308)  (0.273)  (0.288)   (0.267) 
+    ##                                                                                                  
+    ## RaceNative American                      -0.029    -0.450    -0.480    0.461    -0.557   -0.299  
+    ##                                          (0.542)   (0.839)   (0.718)  (0.636)  (0.673)   (0.623) 
+    ##                                                                                                  
+    ## RaceNative Hawaiian or Pacific Islander  -1.085     0.320     1.141    1.099    -1.244    0.713  
+    ##                                          (0.991)   (1.535)   (1.313)  (1.165)  (1.231)   (1.141) 
+    ##                                                                                                  
+    ## RaceNon-Hispanic White                    0.071    -0.005    -0.419*   0.324   -0.376*    0.185  
+    ##                                          (0.172)   (0.267)   (0.229)  (0.203)  (0.214)   (0.198) 
+    ##                                                                                                  
+    ## RaceOther:                                0.133     0.067    -0.088    0.484    -0.351   -0.191  
+    ##                                          (0.325)   (0.504)   (0.431)  (0.382)  (0.404)   (0.374) 
+    ##                                                                                                  
+    ## RacePrefer not to answer                 -0.656    -0.101    -0.264    -0.065   0.135     0.058  
+    ##                                          (0.789)   (1.222)   (1.045)  (0.927)  (0.980)   (0.908) 
+    ##                                                                                                  
+    ## GenderCGSurveyMale                        0.033    -0.180    -0.169    0.051    -0.162   -0.116  
+    ##                                          (0.138)   (0.214)   (0.183)  (0.162)  (0.171)   (0.159) 
+    ##                                                                                                  
+    ## GenderCGSurveyNon-binary / third gender  0.631**  -1.091**    0.225    0.331    0.225    -0.054  
+    ##                                          (0.304)   (0.470)   (0.402)  (0.357)  (0.377)   (0.349) 
+    ##                                                                                                  
+    ## GenderCGSurveyPrefer not to answer        0.919    -1.305    -0.047    0.277    0.453     0.502  
+    ##                                          (0.774)   (1.199)   (1.025)  (0.909)  (0.961)   (0.891) 
+    ##                                                                                                  
+    ## PoliticalAffiliationIndependent          -0.133    -0.078     0.238    -0.007   -0.044    0.024  
+    ##                                          (0.172)   (0.267)   (0.228)  (0.202)  (0.214)   (0.198) 
+    ##                                                                                                  
+    ## PoliticalAffiliationOther                -0.298     0.147    -0.278    0.041    0.096    -0.214  
+    ##                                          (0.250)   (0.387)   (0.331)  (0.294)  (0.310)   (0.288) 
+    ##                                                                                                  
+    ## PoliticalAffiliationPrefer not to say     0.109     0.298     0.158    0.032    -0.057    0.226  
+    ##                                          (0.205)   (0.317)   (0.272)  (0.241)  (0.255)   (0.236) 
+    ##                                                                                                  
+    ## PoliticalAffiliationRepublican           0.692**   -0.165     0.572    0.071    0.170    -0.114  
+    ##                                          (0.273)   (0.423)   (0.362)  (0.321)  (0.340)   (0.315) 
+    ##                                                                                                  
+    ## PoliticalAffiliationSocialist             0.164    0.781**   -0.284    0.244    0.244    -0.142  
+    ##                                          (0.255)   (0.395)   (0.338)  (0.299)  (0.316)   (0.293) 
+    ##                                                                                                  
+    ## ReligiousAffliationBuddhist               0.260    -0.544    -0.814*   -0.163   -0.369    0.125  
+    ##                                          (0.341)   (0.527)   (0.451)  (0.400)  (0.423)   (0.392) 
+    ##                                                                                                  
+    ## ReligiousAffliationHindu                  0.330    -0.664    -0.086    -0.007   -0.124   -0.035  
+    ##                                          (0.291)   (0.450)   (0.385)  (0.341)  (0.361)   (0.334) 
+    ##                                                                                                  
+    ## ReligiousAffliationJewish                 0.102     0.098     0.433   -0.675*   0.377    -0.040  
+    ##                                          (0.314)   (0.486)   (0.415)  (0.368)  (0.389)   (0.361) 
+    ##                                                                                                  
+    ## ReligiousAffliationMuslim                 0.586   -1.487**    0.028    -0.312   -0.127    0.051  
+    ##                                          (0.437)   (0.676)   (0.579)  (0.513)  (0.543)   (0.503) 
+    ##                                                                                                  
+    ## ReligiousAffliationOther Christian:      -0.297   -1.002**   -0.079    -0.089   -0.304    0.033  
+    ##                                          (0.279)   (0.432)   (0.370)  (0.328)  (0.347)   (0.321) 
+    ##                                                                                                  
+    ## ReligiousAffliationOther:                -0.033    -0.846    0.890*    0.320    0.880*    0.029  
+    ##                                          (0.397)   (0.614)   (0.526)  (0.466)  (0.493)   (0.456) 
+    ##                                                                                                  
+    ## ReligiousAffliationPrefer not to say      0.166    -0.187    -0.290    0.243    -0.053    0.151  
+    ##                                          (0.219)   (0.339)   (0.290)  (0.257)  (0.272)   (0.252) 
+    ##                                                                                                  
+    ## ReligiousAffliationProtestant             0.104     0.142     0.498    0.328    -0.465   -0.109  
+    ##                                          (0.233)   (0.360)   (0.308)  (0.273)  (0.289)   (0.268) 
+    ##                                                                                                  
+    ## ReligiousAffliationRoman Catholic        -0.016     0.107   -0.625**   -0.023   0.094    -0.336  
+    ##                                          (0.189)   (0.293)   (0.251)  (0.223)  (0.235)   (0.218) 
+    ##                                                                                                  
+    ## AgeBinChild                               0.295     1.440    -1.291    1.683    0.012   -2.302** 
+    ##                                          (1.013)   (1.568)   (1.342)  (1.190)  (1.258)   (1.165) 
+    ##                                                                                                  
+    ## AgeBinMiddleAge                          -0.201     0.131    -0.235   -0.943*   1.013*   -0.807  
+    ##                                          (0.435)   (0.673)   (0.576)  (0.511)  (0.540)   (0.500) 
+    ##                                                                                                  
+    ## AgeBinStudent                            -0.061   -0.604**    0.144    0.068    -0.143   -0.401* 
+    ##                                          (0.181)   (0.281)   (0.240)  (0.213)  (0.225)   (0.209) 
+    ##                                                                                                  
+    ## Constant                                3.437***  5.521***  5.937***  3.734*** 4.284*** 5.253*** 
+    ##                                          (0.219)   (0.340)   (0.291)  (0.258)  (0.272)   (0.252) 
+    ##                                                                                                  
+    ## -------------------------------------------------------------------------------------------------
+    ## Observations                               266       266       266      266      266       266   
+    ## R2                                        0.597     0.543     0.225    0.091    0.074     0.670  
+    ## Adjusted R2                               0.550     0.489     0.134    -0.016   -0.036    0.631  
+    ## Residual Std. Error (df = 237)            0.933     1.445     1.236    1.097    1.159     1.074  
+    ## F Statistic (df = 28; 237)              12.545*** 10.048*** 2.464***   0.852    0.672   17.162***
+    ## =================================================================================================
+    ## Note:                                                                 *p<0.1; **p<0.05; ***p<0.01
+
+### Covariate Analysis (Profession Variables)
+
+``` r
+mod_pf = list()
+
+for (i in 1:length(data_list)) {
+  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment +  HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + IncomeIn2020, data = data_list[[i]])
+}
+
+stargazer(mod_pf, type = "text", title = "Differences in Differences via Regression (Profession Covariates)")
+```
+
+    ## 
+    ## Differences in Differences via Regression (Profession Covariates)
+    ## =================================================================================================================
+    ##                                                                            Dependent variable:                   
+    ##                                                         ---------------------------------------------------------
+    ##                                                                                 ResponseQ                        
+    ##                                                            (1)       (2)       (3)      (4)      (5)       (6)   
+    ## -----------------------------------------------------------------------------------------------------------------
+    ## TreatmentAssignment                                     -1.961*** -3.028*** -0.796***  0.054    -0.028  -2.801***
+    ##                                                          (0.163)   (0.241)   (0.227)  (0.206)  (0.217)   (0.179) 
+    ##                                                                                                                  
+    ## HasServedInCGPrefer not to answer                         0.212     0.738    -0.775    1.948   3.334**    1.738  
+    ##                                                          (1.148)   (1.703)   (1.607)  (1.456)  (1.532)   (1.266) 
+    ##                                                                                                                  
+    ## HasServedInCGYes                                          1.136    -1.085     0.293    -1.044   0.334    -1.330  
+    ##                                                          (0.781)   (1.158)   (1.092)  (0.990)  (1.041)   (0.861) 
+    ##                                                                                                                  
+    ## HasServedInAnyOtherUniformedServicePrefer not to answer   0.789     0.074     1.210    -0.160   -1.963   -1.234  
+    ##                                                          (0.932)   (1.383)   (1.304)  (1.182)  (1.244)   (1.028) 
+    ##                                                                                                                  
+    ## HasServedInAnyOtherUniformedServiceYes                    1.133     0.470    -0.770    0.874    -0.571    0.220  
+    ##                                                          (0.700)   (1.038)   (0.980)  (0.888)  (0.934)   (0.772) 
+    ##                                                                                                                  
+    ## HighestDegreeReceivedBachelor's degree                    0.463     0.233    -0.309    0.082    0.028   -1.531***
+    ##                                                          (0.438)   (0.650)   (0.613)  (0.555)  (0.584)   (0.483) 
+    ##                                                                                                                  
+    ## HighestDegreeReceivedNo college                           0.399     0.204    -0.562    0.189    0.315   -1.287** 
+    ##                                                          (0.529)   (0.785)   (0.741)  (0.671)  (0.706)   (0.584) 
+    ##                                                                                                                  
+    ## HighestDegreeReceivedSome college                         0.580     0.198    -0.587    0.366    0.112   -1.231** 
+    ##                                                          (0.505)   (0.749)   (0.706)  (0.640)  (0.674)   (0.557) 
+    ##                                                                                                                  
+    ## EmploymentStatusEmployed part time                        0.467     0.944     0.469    -0.626   -0.472    0.358  
+    ##                                                          (0.408)   (0.605)   (0.571)  (0.518)  (0.545)   (0.450) 
+    ##                                                                                                                  
+    ## EmploymentStatusStudent                                   0.273    1.117*     0.639    -0.472   -0.308    0.235  
+    ##                                                          (0.398)   (0.591)   (0.557)  (0.505)  (0.532)   (0.439) 
+    ##                                                                                                                  
+    ## EmploymentStatusUnemployed looking for work               0.394     0.378     0.752    -0.836   -0.231   -0.088  
+    ##                                                          (0.511)   (0.758)   (0.715)  (0.648)  (0.682)   (0.563) 
+    ##                                                                                                                  
+    ## RoleAtBerkeleyUndergraduate Student                       0.515   -1.454**   -0.059    -0.150   0.141     0.591  
+    ##                                                          (0.410)   (0.607)   (0.573)  (0.519)  (0.546)   (0.451) 
+    ##                                                                                                                  
+    ## YearsAtBerkeley2nd Year                                  -0.115    -0.473     0.282    -0.173   -0.197    0.308  
+    ##                                                          (0.271)   (0.402)   (0.379)  (0.344)  (0.361)   (0.299) 
+    ##                                                                                                                  
+    ## YearsAtBerkeley3rd Year                                  -0.034    -0.520     0.173    -0.270   -0.058   -0.399  
+    ##                                                          (0.277)   (0.411)   (0.388)  (0.352)  (0.370)   (0.306) 
+    ##                                                                                                                  
+    ## YearsAtBerkeley4th Year                                  -0.085    -0.523     0.486    -0.294   -0.477   0.0002  
+    ##                                                          (0.275)   (0.407)   (0.384)  (0.348)  (0.366)   (0.303) 
+    ##                                                                                                                  
+    ## YearsAtBerkeley5th Year or beyond                        0.685*   -1.784***  -0.298    -0.272   0.294     0.202  
+    ##                                                          (0.401)   (0.595)   (0.561)  (0.509)  (0.535)   (0.442) 
+    ##                                                                                                                  
+    ## 29,999                                                   -0.063     0.551     0.197    -0.540   0.098    -0.372  
+    ##                                                          (0.351)   (0.520)   (0.491)  (0.445)  (0.468)   (0.387) 
+    ##                                                                                                                  
+    ## 39,999                                                    0.753    -0.991    -0.501    -0.278   0.316    -0.533  
+    ##                                                          (0.502)   (0.744)   (0.702)  (0.636)  (0.670)   (0.553) 
+    ##                                                                                                                  
+    ## 49,999                                                   1.955**    0.513     0.865    -0.446   -0.005    1.002  
+    ##                                                          (0.869)   (1.289)   (1.216)  (1.102)  (1.160)   (0.958) 
+    ##                                                                                                                  
+    ## 59,999                                                    0.347     1.321     0.769    -0.834   -0.214    0.949  
+    ##                                                          (0.626)   (0.928)   (0.876)  (0.794)  (0.835)   (0.690) 
+    ##                                                                                                                  
+    ## 69,999                                                    0.239    -0.952    -0.121    -1.509   -0.969   3.584** 
+    ##                                                          (1.361)   (2.018)   (1.904)  (1.726)  (1.816)   (1.501) 
+    ##                                                                                                                  
+    ## 79,999                                                    1.518    -2.545    -0.599    1.496    1.046    1.981*  
+    ##                                                          (1.076)   (1.595)   (1.505)  (1.364)  (1.435)   (1.186) 
+    ##                                                                                                                  
+    ## 89,999                                                   -0.840    -0.186     0.248    -0.326   -0.123    1.746  
+    ##                                                          (1.042)   (1.545)   (1.458)  (1.321)  (1.390)   (1.149) 
+    ##                                                                                                                  
+    ## 99,999                                                    0.981     1.687    -2.908*   -0.422  -2.925**  -0.549  
+    ##                                                          (1.106)   (1.641)   (1.548)  (1.403)  (1.476)   (1.220) 
+    ##                                                                                                                  
+    ## 10,000                                                   -0.147    -0.299     0.093    -0.127   -0.188   -0.219  
+    ##                                                          (0.258)   (0.383)   (0.361)  (0.327)  (0.344)   (0.285) 
+    ##                                                                                                                  
+    ## Constant                                                2.104***  5.836***  5.422***  4.716*** 4.403*** 5.549*** 
+    ##                                                          (0.670)   (0.993)   (0.937)  (0.849)  (0.893)   (0.738) 
+    ##                                                                                                                  
+    ## -----------------------------------------------------------------------------------------------------------------
+    ## Observations                                               152       152       152      152      152       152   
+    ## R2                                                        0.637     0.633     0.173    0.132    0.137     0.727  
+    ## Adjusted R2                                               0.565     0.561     0.009    -0.040   -0.034    0.673  
+    ## Residual Std. Error (df = 126)                            0.912     1.352     1.275    1.156    1.216     1.005  
+    ## F Statistic (df = 25; 126)                              8.839***  8.705***    1.056    0.768    0.801   13.414***
+    ## =================================================================================================================
+    ## Note:                                                                                 *p<0.1; **p<0.05; ***p<0.01
+
+### Covariate Analysis (Behavioral Variables)
+
+``` r
+mod_bhv = list()
+
+for (i in 1:length(data_list)) {
+  mod_bhv[[i]] = lm(ResponseQ ~ TreatmentAssignment +  FrequencySocialMediaAccess + FrequencySocialMediaPosting + BookFormatPurchasedMostOften, data = data_list[[i]])
+}
+
+stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regression (Behavioral Covariates)")
+```
+
+    ## 
+    ## Differences in Differences via Regression (Behavioral Covariates)
+    ## ============================================================================================================
+    ##                                                                       Dependent variable:                   
+    ##                                                    ---------------------------------------------------------
+    ##                                                                            ResponseQ                        
+    ##                                                       (1)       (2)       (3)      (4)      (5)       (6)   
+    ## ------------------------------------------------------------------------------------------------------------
+    ## TreatmentAssignment                                -2.070*** -2.790*** -0.822***  -0.030   0.036   -2.835***
+    ##                                                     (0.114)   (0.180)   (0.153)  (0.135)  (0.140)   (0.127) 
+    ##                                                                                                             
+    ## FrequencySocialMediaAccessLess than Weekly           0.256    -0.186   -1.048***  0.447    -0.202    0.113  
+    ##                                                     (0.270)   (0.427)   (0.363)  (0.320)  (0.332)   (0.302) 
+    ##                                                                                                             
+    ## FrequencySocialMediaAccessMore than once a day      -0.026    -0.028    -0.089    0.027    -0.119   -0.161  
+    ##                                                     (0.138)   (0.219)   (0.186)  (0.164)  (0.170)   (0.155) 
+    ##                                                                                                             
+    ## FrequencySocialMediaAccessPrefer not to say          0.700     0.354    -2.491*   0.155    -1.409    1.071  
+    ##                                                     (0.952)   (1.506)   (1.279)  (1.128)  (1.170)   (1.064) 
+    ##                                                                                                             
+    ## FrequencySocialMediaAccessWeekly                   0.613***   -0.418    -0.469    -0.029   0.420     0.353  
+    ##                                                     (0.234)   (0.370)   (0.314)  (0.277)  (0.288)   (0.261) 
+    ##                                                                                                             
+    ## FrequencySocialMediaPostingLess than Weekly         -0.155    -0.131     0.423    -0.071   -0.137    0.101  
+    ##                                                     (0.212)   (0.335)   (0.284)  (0.251)  (0.260)   (0.237) 
+    ##                                                                                                             
+    ## FrequencySocialMediaPostingMore than once a day     -0.170    -0.158     0.529    -0.468   -0.227    0.647  
+    ##                                                     (0.391)   (0.618)   (0.525)  (0.463)  (0.480)   (0.437) 
+    ##                                                                                                             
+    ## FrequencySocialMediaPostingPrefer not to say         0.223    -0.036    1.794*    -0.158   0.722    -1.078  
+    ##                                                     (0.706)   (1.117)   (0.949)  (0.837)  (0.868)   (0.789) 
+    ##                                                                                                             
+    ## FrequencySocialMediaPostingWeekly                   -0.232    -0.267     0.277    -0.280   -0.301    0.077  
+    ##                                                     (0.245)   (0.387)   (0.329)  (0.290)  (0.301)   (0.274) 
+    ##                                                                                                             
+    ## BookFormatPurchasedMostOftenI buy ebooks             0.127     0.037     0.065    -0.132  0.517**    0.342  
+    ##                                                     (0.192)   (0.304)   (0.258)  (0.228)  (0.236)   (0.215) 
+    ##                                                                                                             
+    ## BookFormatPurchasedMostOftenI buy physical books    -0.012    -0.334    -0.226    0.240   0.479***  -0.066  
+    ##                                                     (0.135)   (0.214)   (0.182)  (0.160)  (0.166)   (0.151) 
+    ##                                                                                                             
+    ## BookFormatPurchasedMostOftenI don't purchase books  -0.065    -0.268    -0.047    0.205    0.381*   -0.213  
+    ##                                                     (0.166)   (0.262)   (0.223)  (0.197)  (0.204)   (0.185) 
+    ##                                                                                                             
+    ## Constant                                           3.618***  5.244***  5.720***  3.898*** 3.930*** 4.957*** 
+    ##                                                     (0.240)   (0.380)   (0.323)  (0.285)  (0.295)   (0.269) 
+    ##                                                                                                             
+    ## ------------------------------------------------------------------------------------------------------------
+    ## Observations                                          279       279       279      279      279       279   
+    ## R2                                                   0.579     0.490     0.152    0.030    0.060     0.664  
+    ## Adjusted R2                                          0.560     0.467     0.114    -0.013   0.017     0.649  
+    ## Residual Std. Error (df = 266)                       0.933     1.475     1.254    1.106    1.147     1.043  
+    ## F Statistic (df = 12; 266)                         30.474*** 21.318*** 3.976***   0.693    1.412   43.822***
+    ## ============================================================================================================
+    ## Note:                                                                            *p<0.1; **p<0.05; ***p<0.01

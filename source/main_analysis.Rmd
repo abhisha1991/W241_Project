@@ -1,0 +1,97 @@
+## Analysis
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(data.table)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(dplyr)
+``` 
+
+```{r Check if dataset exists}
+tryCatch(
+  {
+    nrow(dataset)
+  },
+  error = function(e) {
+    print("dataset variable not found, cannot proceed further!")
+    stop(e)
+  }
+)
+```
+
+```{r}
+# load Q1 data - WM vs BM
+Q1 = dataset[QNum == 1 & IsAttrited == FALSE & IsNeverTaker == FALSE, ]
+```
+
+```{r}
+
+# Lets perform the difference in differences manually for Q1 and then verify it with a regression model
+A = mean(Q1[TreatmentAssignment == TRUE, ResponseQ])
+B = mean(Q1[TreatmentAssignment == FALSE, ResponseQ])
+```
+
+```{r}
+mod_q1 = lm(ResponseQ ~ TreatmentAssignment, data = Q1)
+stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression")
+```
+
+>From the above, we notice that the treatment coefficient value from the regression ```r mod_q1$coefficients[2]``` exactly matches what we obtained from our manual differences in differences model. `A - B =` ```r A-B```. There seems to be a favorable significant effect for white males since the DiD result is negative.
+
+>Next, we attempt to add covariates into the analysis. We can think of our covariates belonging to different categories - `demographic`, `profession`, and `behaviorial`.
+
+>We are interested in a few `demographic` covariates - namely, `Race`, `GenderCGSurvey`, `PoliticalAffiliation`, `ReligiousAffliation`, `ClassLevel`, `AgeBin`, `IsEnglishFirstLanguage`, `CountryOfResidence`, `StateOfResidence`
+
+>Next we are also interested in a few `profession` related covariates - namely `HasServedInCG`, `HasServedInAnyOtherUniformedService`, `HighestDegreeReceived`, `EmploymentStatus`, `DidEarnMoneyLastYear`, `RoleAtBerkeley`, `YearsAtBerkeley`, `IncomeIn2020`
+
+>Lastly, we may be interested in few `behavior` related covariates - namely `FrequencySocialMediaAccess`, `FrequencySocialMediaPosting`, `BookFormatPurchasedMostOften`. There is weak interest in this category as we suspect there is little effect of these behavioral forces that may be affecting resume comparison. We will explore them nevertheless.
+
+
+```{r}
+Q_WMBM = dataset[QNum == 1 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM BM
+Q_WMWF = dataset[QNum == 2 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM WF
+Q_WMBF = dataset[QNum == 3 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WM BF
+Q_WFBM = dataset[QNum == 4 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF BM
+Q_BMBF = dataset[QNum == 5 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # BM BF
+Q_WFBF = dataset[QNum == 6 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF BF
+
+data_list = list(Q_WMBM, Q_WMWF, Q_WMBF, Q_WFBM, Q_BMBF, Q_WFBF)
+```
+
+### Covariate Analysis (Demographic Variables)
+
+```{r}
+mod_dmg = list()
+
+for (i in 1:length(data_list)) {
+  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin, data = data_list[[i]])
+}
+
+stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regression (Demographic Covariates)")
+```
+
+### Covariate Analysis (Profession Variables)
+
+```{r}
+mod_pf = list()
+
+for (i in 1:length(data_list)) {
+  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment +  HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + IncomeIn2020, data = data_list[[i]])
+}
+
+stargazer(mod_pf, type = "text", title = "Differences in Differences via Regression (Profession Covariates)")
+```
+
+
+### Covariate Analysis (Behavioral Variables)
+
+```{r}
+mod_bhv = list()
+
+for (i in 1:length(data_list)) {
+  mod_bhv[[i]] = lm(ResponseQ ~ TreatmentAssignment +  FrequencySocialMediaAccess + FrequencySocialMediaPosting + BookFormatPurchasedMostOften, data = data_list[[i]])
+}
+
+stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regression (Behavioral Covariates)")
+```
