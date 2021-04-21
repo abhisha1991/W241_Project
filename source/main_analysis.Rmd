@@ -34,7 +34,7 @@ B = mean(Q1[TreatmentAssignment == FALSE, ResponseQ])
 
 ```{r}
 mod_q1 = lm(ResponseQ ~ TreatmentAssignment, data = Q1)
-stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression")
+stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression (WM vs BM)")
 ```
 
 >From the above, we notice that the treatment coefficient value from the regression ```r mod_q1$coefficients[2]``` exactly matches what we obtained from our manual differences in differences model. `A - B =` ```r A-B```. There seems to be a favorable significant effect for white males since the DiD result is negative.
@@ -59,16 +59,42 @@ Q_WFBF = dataset[QNum == 6 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF
 data_list = list(Q_WMBM, Q_WMWF, Q_WMBF, Q_WFBM, Q_BMBF, Q_WFBF)
 ```
 
+### Treatment Effect (Vanilla Model)
+
+```{r}
+mod_vanilla = list()
+
+for (i in 1:length(data_list)) {
+  mod_vanilla[[i]] = lm(ResponseQ ~ TreatmentAssignment, data = data_list[[i]])
+}
+
+stargazer(mod_vanilla, type = "text", title = "Treatment Effects (Vanilla - No Covariates)")
+```
+
+### Covariate Analysis (Core Variables)
+
+>In our actual run of the survey against the coast guard audience, we expect to only have access to some core covariates - `Race`, `GenderCGSurvey` and `AgeBin`. This is due to the restrictive nature of information sharing protocols followed at organizations like the U.S. Coast Guard. These are also the covariates which we are explicitly interested in because the preference of the resumes can be hypothesized to depend on the above covariates (as compared to other covariates, say `HighestDegreeReceived` - that probably won't influence the treatment as much).
+
+```{r}
+mod_core = list()
+
+for (i in 1:length(data_list)) {
+  mod_core[[i]] = lm(ResponseQ ~ TreatmentAssignment + Race + GenderCGSurvey + AgeBin, data = data_list[[i]])
+}
+
+stargazer(mod_core, type = "text", title = "Treatment Effects (Core Covariates)")
+```
+
 ### Covariate Analysis (Demographic Variables)
 
 ```{r}
 mod_dmg = list()
 
 for (i in 1:length(data_list)) {
-  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin, data = data_list[[i]])
+  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin + ClassLevel, data = data_list[[i]])
 }
 
-stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regression (Demographic Covariates)")
+stargazer(mod_dmg, type = "text", title = "Treatment Effects (Demographic Covariates)")
 ```
 
 ### Covariate Analysis (Profession Variables)
@@ -77,12 +103,12 @@ stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regres
 mod_pf = list()
 
 for (i in 1:length(data_list)) {
-  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment +  HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + IncomeIn2020, data = data_list[[i]])
+  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment + HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + as.factor(IncomeIn2020), data = data_list[[i]])
 }
 
-stargazer(mod_pf, type = "text", title = "Differences in Differences via Regression (Profession Covariates)")
+stargazer(mod_pf, type = "text", title = "Treatment Effects (Profession Covariates)")
 ```
-
+>Note that here, the coefficient with numbers in thousands is referring to the `IncomeIn2020` covariate. For example, a value like `99,999` in the above table refers to the interval `$90,000 - $99,999`. So we are referring to the upper bound income in the coefficient above.
 
 ### Covariate Analysis (Behavioral Variables)
 
@@ -93,5 +119,64 @@ for (i in 1:length(data_list)) {
   mod_bhv[[i]] = lm(ResponseQ ~ TreatmentAssignment +  FrequencySocialMediaAccess + FrequencySocialMediaPosting + BookFormatPurchasedMostOften, data = data_list[[i]])
 }
 
-stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regression (Behavioral Covariates)")
+stargazer(mod_bhv, type = "text", title = "Treatment Effects (Behavioral Covariates)")
 ```
+
+### Placebo Test (Pre and Post Within Subject Response Change)
+
+>In order to test that the audience had not been influenced by the survey itself (in terms of their affinity to judge others' resumes), we conducted a pre-post placebo test where we asked a related question whose responses should NOT have changed per participant (within subject). The question asked was `"How much do you like your coworkers?"`. This question was posed to the participant `before they started answering` the resume comparison questions and `after they had finished answering` the resume comparison questions. We expect that the participants (on average) should not have had a change in response to this question throughout the survey.
+
+```{r Placebo Test}
+getNumericAffinityChange <- function(data) {
+  Change = c()
+  for (i in 1:nrow(data)) {
+    pre = -1000
+    post = 1000
+    
+    # pre survey response
+    if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Dislike a great deal") {
+      pre = 0 
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Dislike somewhat") {
+      pre = 1
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Neither like nor dislike") {
+      pre = 2
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Like somewhat") {
+      pre = 3
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Like a great deal") {
+      pre = 4
+    }
+    
+    # post survey response
+    if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Dislike a great deal") {
+      post = 0 
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Dislike somewhat") {
+      post = 1
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Neither like nor dislike") {
+      post = 2
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Like somewhat") {
+      post = 3
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Like a great deal") {
+      post = 4
+    }
+    
+    Change = c(Change, post-pre)
+  }
+  
+  return(data.table(Change))
+}
+
+controlPlaceboTestChange = getNumericAffinityChange(Q_WMBM[TreatmentAssignment == FALSE, ] %>% select(PlaceboPreTestColleagueAffinity, PlaceboPostTestColleagueAffinity))
+
+treatmentlPlaceboTestChange = getNumericAffinityChange(Q_WMBM[TreatmentAssignment == TRUE, ] %>% select(PlaceboPreTestColleagueAffinity, PlaceboPostTestColleagueAffinity))
+
+```
+
+```{r}
+controlPlaceboTestChange[, .(count=.N), by = list(Change)]
+```
+
+```{r}
+treatmentlPlaceboTestChange[, .(count=.N), by = list(Change)]
+```
+
+>We notice in both treatment and control groups, most values are 0, which means that there was no change in the placebo test response pre and post survey. We notice a very large value when one of the responses were NA. Those can be ignored. From the above, we conclude that the placebo test worked!

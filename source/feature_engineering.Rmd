@@ -10,12 +10,15 @@ library(stargazer)
 library(dplyr)
 ``` 
 
+### Load Data
+
 ```{r}
 d <- fread("data.csv",  na.strings=c("","NA"))
 
 # head(d)
 ```
 
+### Basic Distribution Checks
 ```{r}
 # display number of columns
 length(d[0])
@@ -37,6 +40,7 @@ d[, .(count=.N), by = list(Finished)]
 ```{r}
 d[, .(count=.N), by = list(Progress)]
 ```
+### Utility Tools
 
 ```{r Utility Functions}
 # gets a row by the field "Name" in dataframe "data"
@@ -116,7 +120,7 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
 generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
   
   nums = mean + sd * scale(rnorm(n))
-  # numbers must be 1-5
+  # numbers must be low-high
   for (i in 1:nrow(nums)) {
     
     # arbitrarily choose floor or ceiling for that number (since response must be integer)
@@ -127,7 +131,7 @@ generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
       nums[i] = floor(nums[i]) 
     }
     
-    # bound number between 1-7
+    # bound number between low-high
     if(nums[i] < low) {
       nums[i] = low
     }
@@ -205,6 +209,8 @@ controlBinding <- data.table(
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
 ```
+
+### Identifying Attrition and Non Compliance
 
 ```{r}
 # treatment and control assignment
@@ -301,7 +307,7 @@ setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
 # example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
 ```
 
-## Create Datasets to be used
+## Create Datasets Per Question
 
 ```{r Utility Functions for Dataset Creation}
 cols <- colnames(d)
@@ -414,6 +420,7 @@ mean(dCQ4$ControlQ4)
 mean(dCQ5$ControlQ5)
 mean(dCQ6$ControlQ6)
 ```
+### Get Final Dataset
 
 ```{r Join Treatment and Control Tables with Metadata}
 
@@ -541,7 +548,7 @@ appendAllDataTables <- function(tableList) {
 dataset = appendAllDataTables(list(dTQ1, dTQ2, dTQ3, dTQ4, dTQ5, dTQ6, dCQ1, dCQ2, dCQ3, dCQ4, dCQ5, dCQ6))
 ```
 
-```{r}
+```{r Assign AgeBin, get final dataset}
 # AgeBin is a feature of interest for us, which tells us which age group the respondent belongs to
 # We will infer this from the YearOfBirth variable
 
