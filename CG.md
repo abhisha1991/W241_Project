@@ -5,11 +5,15 @@ Hanyu, Brendan and Abhi
 
 ## Feature Engineering
 
+### Load Data
+
 ``` r
 d <- fread("data.csv",  na.strings=c("","NA"))
 
 # head(d)
 ```
+
+### Basic Distribution Checks
 
 ``` r
 # display number of columns
@@ -69,6 +73,8 @@ d[, .(count=.N), by = list(Progress)]
     ## 20:       78     1
     ## 21:       69     1
     ##     Progress count
+
+### Utility Tools
 
 ``` r
 # gets a row by the field "Name" in dataframe "data"
@@ -148,7 +154,7 @@ isInvalidTreatmentAssignment <- function(data, rowNum) {
 generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
   
   nums = mean + sd * scale(rnorm(n))
-  # numbers must be 1-5
+  # numbers must be low-high
   for (i in 1:nrow(nums)) {
     
     # arbitrarily choose floor or ceiling for that number (since response must be integer)
@@ -159,7 +165,7 @@ generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
       nums[i] = floor(nums[i]) 
     }
     
-    # bound number between 1-7
+    # bound number between low-high
     if(nums[i] < low) {
       nums[i] = low
     }
@@ -236,6 +242,8 @@ controlBinding <- data.table(
   ControlCol = c("ControlQ1", "ControlQ2", "ControlQ3", "ControlQ4", "ControlQ5", "ControlQ6")
 )
 ```
+
+### Identifying Attrition and Non Compliance
 
 ``` r
 # treatment and control assignment
@@ -398,7 +406,7 @@ setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
 # example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
 ```
 
-## Create Datasets to be used
+## Create Datasets Per Question
 
 ``` r
 cols <- colnames(d)
@@ -626,6 +634,8 @@ mean(dCQ6$ControlQ6)
 ```
 
     ## [1] 4.944056
+
+### Get Final Dataset
 
 ``` r
 addTreatmentMetadataToDataset <- function(dt, treatmentNum) {
@@ -882,11 +892,11 @@ B = mean(Q1[TreatmentAssignment == FALSE, ResponseQ])
 
 ``` r
 mod_q1 = lm(ResponseQ ~ TreatmentAssignment, data = Q1)
-stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression")
+stargazer(mod_q1, type = "text", title = "Differences in Differences via Regression (WM vs BM)")
 ```
 
     ## 
-    ## Differences in Differences via Regression
+    ## Differences in Differences via Regression (WM vs BM)
     ## ===============================================
     ##                         Dependent variable:    
     ##                     ---------------------------
@@ -945,119 +955,247 @@ Q_WFBF = dataset[QNum == 6 & IsAttrited == FALSE & IsNeverTaker == FALSE, ] # WF
 data_list = list(Q_WMBM, Q_WMWF, Q_WMBF, Q_WFBM, Q_BMBF, Q_WFBF)
 ```
 
-### Covariate Analysis (Demographic Variables)
+### Treatment Effect (Vanilla Model)
 
 ``` r
-mod_dmg = list()
+mod_vanilla = list()
 
 for (i in 1:length(data_list)) {
-  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin, data = data_list[[i]])
+  mod_vanilla[[i]] = lm(ResponseQ ~ TreatmentAssignment, data = data_list[[i]])
 }
 
-stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regression (Demographic Covariates)")
+stargazer(mod_vanilla, type = "text", title = "Treatment Effects (Vanilla - No Covariates)")
 ```
 
     ## 
-    ## Differences in Differences via Regression (Demographic Covariates)
+    ## Treatment Effects (Vanilla - No Covariates)
+    ## ===========================================================================================
+    ##                                                    Dependent variable:                     
+    ##                                ------------------------------------------------------------
+    ##                                                         ResponseQ                          
+    ##                                   (1)        (2)        (3)      (4)      (5)       (6)    
+    ## -------------------------------------------------------------------------------------------
+    ## TreatmentAssignment            -2.089***  -2.808***  -0.795***  -0.059   0.037   -2.821*** 
+    ##                                 (0.112)    (0.174)    (0.151)  (0.132)  (0.138)   (0.125)  
+    ##                                                                                            
+    ## Constant                        3.535***   4.887***  5.845***  3.951*** 4.028***  4.965*** 
+    ##                                 (0.079)    (0.122)    (0.106)  (0.093)  (0.097)   (0.088)  
+    ##                                                                                            
+    ## -------------------------------------------------------------------------------------------
+    ## Observations                      281        281        281      281      281       281    
+    ## R2                               0.555      0.482      0.090    0.001    0.0003    0.645   
+    ## Adjusted R2                      0.554      0.481      0.087    -0.003   -0.003    0.643   
+    ## Residual Std. Error (df = 279)   0.938      1.460      1.269    1.104    1.158     1.051   
+    ## F Statistic (df = 1; 279)      348.175*** 260.033*** 27.551***  0.198    0.070   506.410***
+    ## ===========================================================================================
+    ## Note:                                                           *p<0.1; **p<0.05; ***p<0.01
+
+### Covariate Analysis (Core Variables)
+
+> In our actual run of the survey against the coast guard audience, we
+> expect to only have access to some core covariates - `Race`,
+> `GenderCGSurvey` and `AgeBin`. This is due to the restrictive nature
+> of information sharing protocols followed at organizations like the
+> U.S. Coast Guard. These are also the covariates which we are
+> explicitly interested in because the preference of the resumes can be
+> hypothesized to depend on the above covariates (as compared to other
+> covariates, say `HighestDegreeReceived` - that probably won’t
+> influence the treatment as much).
+
+``` r
+mod_core = list()
+
+for (i in 1:length(data_list)) {
+  mod_core[[i]] = lm(ResponseQ ~ TreatmentAssignment + Race + GenderCGSurvey + AgeBin, data = data_list[[i]])
+}
+
+stargazer(mod_core, type = "text", title = "Treatment Effects (Core Covariates)")
+```
+
+    ## 
+    ## Treatment Effects (Core Covariates)
     ## =================================================================================================
     ##                                                            Dependent variable:                   
     ##                                         ---------------------------------------------------------
     ##                                                                 ResponseQ                        
     ##                                            (1)       (2)       (3)      (4)      (5)       (6)   
     ## -------------------------------------------------------------------------------------------------
-    ## TreatmentAssignment                     -2.083*** -2.665*** -0.796***  -0.035   0.022   -2.781***
-    ##                                          (0.119)   (0.184)   (0.158)  (0.140)  (0.148)   (0.137) 
+    ## TreatmentAssignment                     -2.087*** -2.722*** -0.840***  -0.062   0.042   -2.798***
+    ##                                          (0.118)   (0.184)   (0.159)  (0.136)  (0.145)   (0.133) 
     ##                                                                                                  
-    ## RaceBlack or African American             0.307    -0.317     0.180    0.393    0.396     0.378  
-    ##                                          (0.344)   (0.532)   (0.456)  (0.404)  (0.427)   (0.396) 
+    ## RaceBlack or African American             0.156    -0.449     0.090    0.325    0.364     0.270  
+    ##                                          (0.329)   (0.512)   (0.443)  (0.379)  (0.402)   (0.369) 
     ##                                                                                                  
-    ## RaceHispanic or Latino                   -0.220    -0.216    -0.008    -0.285   0.030   0.773*** 
-    ##                                          (0.232)   (0.359)   (0.308)  (0.273)  (0.288)   (0.267) 
+    ## RaceHispanic or Latino                   -0.282    -0.022    -0.253    -0.375   0.196    0.577** 
+    ##                                          (0.213)   (0.332)   (0.287)  (0.246)  (0.261)   (0.240) 
     ##                                                                                                  
-    ## RaceNative American                      -0.029    -0.450    -0.480    0.461    -0.557   -0.299  
-    ##                                          (0.542)   (0.839)   (0.718)  (0.636)  (0.673)   (0.623) 
+    ## RaceNative American                       0.185    -0.292    -0.910    0.356    -0.298   -0.632  
+    ##                                          (0.509)   (0.793)   (0.686)  (0.588)  (0.623)   (0.572) 
     ##                                                                                                  
-    ## RaceNative Hawaiian or Pacific Islander  -1.085     0.320     1.141    1.099    -1.244    0.713  
-    ##                                          (0.991)   (1.535)   (1.313)  (1.165)  (1.231)   (1.141) 
+    ## RaceNative Hawaiian or Pacific Islander  -0.555     0.364     1.013    1.077    -0.912    0.251  
+    ##                                          (0.951)   (1.481)   (1.281)  (1.098)  (1.164)   (1.068) 
     ##                                                                                                  
-    ## RaceNon-Hispanic White                    0.071    -0.005    -0.419*   0.324   -0.376*    0.185  
-    ##                                          (0.172)   (0.267)   (0.229)  (0.203)  (0.214)   (0.198) 
+    ## RaceNon-Hispanic White                   -0.002     0.208   -0.500**   0.197    -0.158    0.040  
+    ##                                          (0.146)   (0.227)   (0.196)  (0.168)  (0.178)   (0.163) 
     ##                                                                                                  
-    ## RaceOther:                                0.133     0.067    -0.088    0.484    -0.351   -0.191  
-    ##                                          (0.325)   (0.504)   (0.431)  (0.382)  (0.404)   (0.374) 
+    ## RaceOther:                                0.225     0.003    -0.081    0.521    -0.387   -0.170  
+    ##                                          (0.311)   (0.485)   (0.419)  (0.359)  (0.381)   (0.349) 
     ##                                                                                                  
-    ## RacePrefer not to answer                 -0.656    -0.101    -0.264    -0.065   0.135     0.058  
-    ##                                          (0.789)   (1.222)   (1.045)  (0.927)  (0.980)   (0.908) 
+    ## RacePrefer not to answer                 -0.317    -0.845    -0.386    -0.321   0.161     0.270  
+    ##                                          (0.737)   (1.149)   (0.993)  (0.851)  (0.903)   (0.828) 
     ##                                                                                                  
-    ## GenderCGSurveyMale                        0.033    -0.180    -0.169    0.051    -0.162   -0.116  
-    ##                                          (0.138)   (0.214)   (0.183)  (0.162)  (0.171)   (0.159) 
+    ## GenderCGSurveyMale                        0.098    -0.164    -0.096    0.048    -0.140   -0.153  
+    ##                                          (0.131)   (0.203)   (0.176)  (0.151)  (0.160)   (0.147) 
     ##                                                                                                  
-    ## GenderCGSurveyNon-binary / third gender  0.631**  -1.091**    0.225    0.331    0.225    -0.054  
-    ##                                          (0.304)   (0.470)   (0.402)  (0.357)  (0.377)   (0.349) 
+    ## GenderCGSurveyNon-binary / third gender  0.516*   -0.933**    0.221    0.416    0.189    -0.149  
+    ##                                          (0.284)   (0.443)   (0.383)  (0.328)  (0.348)   (0.319) 
     ##                                                                                                  
-    ## GenderCGSurveyPrefer not to answer        0.919    -1.305    -0.047    0.277    0.453     0.502  
-    ##                                          (0.774)   (1.199)   (1.025)  (0.909)  (0.961)   (0.891) 
+    ## GenderCGSurveyPrefer not to answer        0.812    -0.422     0.401    0.713    0.147     0.450  
+    ##                                          (0.737)   (1.147)   (0.992)  (0.850)  (0.902)   (0.827) 
     ##                                                                                                  
-    ## PoliticalAffiliationIndependent          -0.133    -0.078     0.238    -0.007   -0.044    0.024  
-    ##                                          (0.172)   (0.267)   (0.228)  (0.202)  (0.214)   (0.198) 
+    ## AgeBinChild                              -0.120     0.358    -0.873    1.575    -0.414   -2.014* 
+    ##                                          (0.976)   (1.520)   (1.315)  (1.127)  (1.195)   (1.096) 
     ##                                                                                                  
-    ## PoliticalAffiliationOther                -0.298     0.147    -0.278    0.041    0.096    -0.214  
-    ##                                          (0.250)   (0.387)   (0.331)  (0.294)  (0.310)   (0.288) 
+    ## AgeBinMiddleAge                          -0.341    -0.124     0.018   -0.893*   0.720    -0.607  
+    ##                                          (0.420)   (0.654)   (0.565)  (0.484)  (0.514)   (0.471) 
     ##                                                                                                  
-    ## PoliticalAffiliationPrefer not to say     0.109     0.298     0.158    0.032    -0.057    0.226  
-    ##                                          (0.205)   (0.317)   (0.272)  (0.241)  (0.255)   (0.236) 
+    ## AgeBinStudent                            -0.031   -0.587**    0.117    0.014    -0.126   -0.333* 
+    ##                                          (0.176)   (0.274)   (0.237)  (0.203)  (0.216)   (0.198) 
     ##                                                                                                  
-    ## PoliticalAffiliationRepublican           0.692**   -0.165     0.572    0.071    0.170    -0.114  
-    ##                                          (0.273)   (0.423)   (0.362)  (0.321)  (0.340)   (0.315) 
-    ##                                                                                                  
-    ## PoliticalAffiliationSocialist             0.164    0.781**   -0.284    0.244    0.244    -0.142  
-    ##                                          (0.255)   (0.395)   (0.338)  (0.299)  (0.316)   (0.293) 
-    ##                                                                                                  
-    ## ReligiousAffliationBuddhist               0.260    -0.544    -0.814*   -0.163   -0.369    0.125  
-    ##                                          (0.341)   (0.527)   (0.451)  (0.400)  (0.423)   (0.392) 
-    ##                                                                                                  
-    ## ReligiousAffliationHindu                  0.330    -0.664    -0.086    -0.007   -0.124   -0.035  
-    ##                                          (0.291)   (0.450)   (0.385)  (0.341)  (0.361)   (0.334) 
-    ##                                                                                                  
-    ## ReligiousAffliationJewish                 0.102     0.098     0.433   -0.675*   0.377    -0.040  
-    ##                                          (0.314)   (0.486)   (0.415)  (0.368)  (0.389)   (0.361) 
-    ##                                                                                                  
-    ## ReligiousAffliationMuslim                 0.586   -1.487**    0.028    -0.312   -0.127    0.051  
-    ##                                          (0.437)   (0.676)   (0.579)  (0.513)  (0.543)   (0.503) 
-    ##                                                                                                  
-    ## ReligiousAffliationOther Christian:      -0.297   -1.002**   -0.079    -0.089   -0.304    0.033  
-    ##                                          (0.279)   (0.432)   (0.370)  (0.328)  (0.347)   (0.321) 
-    ##                                                                                                  
-    ## ReligiousAffliationOther:                -0.033    -0.846    0.890*    0.320    0.880*    0.029  
-    ##                                          (0.397)   (0.614)   (0.526)  (0.466)  (0.493)   (0.456) 
-    ##                                                                                                  
-    ## ReligiousAffliationPrefer not to say      0.166    -0.187    -0.290    0.243    -0.053    0.151  
-    ##                                          (0.219)   (0.339)   (0.290)  (0.257)  (0.272)   (0.252) 
-    ##                                                                                                  
-    ## ReligiousAffliationProtestant             0.104     0.142     0.498    0.328    -0.465   -0.109  
-    ##                                          (0.233)   (0.360)   (0.308)  (0.273)  (0.289)   (0.268) 
-    ##                                                                                                  
-    ## ReligiousAffliationRoman Catholic        -0.016     0.107   -0.625**   -0.023   0.094    -0.336  
-    ##                                          (0.189)   (0.293)   (0.251)  (0.223)  (0.235)   (0.218) 
-    ##                                                                                                  
-    ## AgeBinChild                               0.295     1.440    -1.291    1.683    0.012   -2.302** 
-    ##                                          (1.013)   (1.568)   (1.342)  (1.190)  (1.258)   (1.165) 
-    ##                                                                                                  
-    ## AgeBinMiddleAge                          -0.201     0.131    -0.235   -0.943*   1.013*   -0.807  
-    ##                                          (0.435)   (0.673)   (0.576)  (0.511)  (0.540)   (0.500) 
-    ##                                                                                                  
-    ## AgeBinStudent                            -0.061   -0.604**    0.144    0.068    -0.143   -0.401* 
-    ##                                          (0.181)   (0.281)   (0.240)  (0.213)  (0.225)   (0.209) 
-    ##                                                                                                  
-    ## Constant                                3.437***  5.521***  5.937***  3.734*** 4.284*** 5.253*** 
-    ##                                          (0.219)   (0.340)   (0.291)  (0.258)  (0.272)   (0.252) 
+    ## Constant                                3.488***  5.387***  5.966***  3.862*** 4.177*** 5.235*** 
+    ##                                          (0.198)   (0.309)   (0.267)  (0.229)  (0.243)   (0.223) 
     ##                                                                                                  
     ## -------------------------------------------------------------------------------------------------
     ## Observations                               266       266       266      266      266       266   
-    ## R2                                        0.597     0.543     0.225    0.091    0.074     0.670  
-    ## Adjusted R2                               0.550     0.489     0.134    -0.016   -0.036    0.631  
-    ## Residual Std. Error (df = 237)            0.933     1.445     1.236    1.097    1.159     1.074  
-    ## F Statistic (df = 28; 237)              12.545*** 10.048*** 2.464***   0.852    0.672   17.162***
+    ## R2                                        0.567     0.503     0.140    0.058    0.032     0.662  
+    ## Adjusted R2                               0.543     0.475     0.092    0.005    -0.022    0.643  
+    ## Residual Std. Error (df = 251)            0.940     1.464     1.266    1.085    1.151     1.056  
+    ## F Statistic (df = 14; 251)              23.464*** 18.127*** 2.912***   1.098    0.602   35.098***
+    ## =================================================================================================
+    ## Note:                                                                 *p<0.1; **p<0.05; ***p<0.01
+
+### Covariate Analysis (Demographic Variables)
+
+``` r
+mod_dmg = list()
+
+for (i in 1:length(data_list)) {
+  mod_dmg[[i]] = lm(ResponseQ ~ TreatmentAssignment +  Race  +  GenderCGSurvey +  PoliticalAffiliation + ReligiousAffliation + AgeBin + ClassLevel, data = data_list[[i]])
+}
+
+stargazer(mod_dmg, type = "text", title = "Treatment Effects (Demographic Covariates)")
+```
+
+    ## 
+    ## Treatment Effects (Demographic Covariates)
+    ## =================================================================================================
+    ##                                                            Dependent variable:                   
+    ##                                         ---------------------------------------------------------
+    ##                                                                 ResponseQ                        
+    ##                                            (1)       (2)       (3)      (4)      (5)       (6)   
+    ## -------------------------------------------------------------------------------------------------
+    ## TreatmentAssignment                     -2.081*** -2.666*** -0.795***  -0.041   0.017   -2.790***
+    ##                                          (0.119)   (0.184)   (0.158)  (0.139)  (0.149)   (0.136) 
+    ##                                                                                                  
+    ## RaceBlack or African American             0.327    -0.338     0.153    0.363    0.387     0.459  
+    ##                                          (0.346)   (0.535)   (0.459)  (0.402)  (0.431)   (0.393) 
+    ##                                                                                                  
+    ## RaceHispanic or Latino                   -0.203    -0.269    -0.032    -0.376   -0.017  0.798*** 
+    ##                                          (0.235)   (0.364)   (0.312)  (0.274)  (0.293)   (0.267) 
+    ##                                                                                                  
+    ## RaceNative American                      -0.049    -0.424    -0.487    0.536    -0.501   -0.236  
+    ##                                          (0.544)   (0.841)   (0.722)  (0.633)  (0.677)   (0.618) 
+    ##                                                                                                  
+    ## RaceNative Hawaiian or Pacific Islander  -1.014     0.332     1.114    1.087    -1.261    0.840  
+    ##                                          (0.995)   (1.538)   (1.321)  (1.158)  (1.239)   (1.131) 
+    ##                                                                                                  
+    ## RaceNon-Hispanic White                    0.055    -0.058    -0.445*   0.263   -0.392*    0.213  
+    ##                                          (0.174)   (0.269)   (0.231)  (0.202)  (0.216)   (0.198) 
+    ##                                                                                                  
+    ## RaceOther:                                0.089     0.033    -0.118    0.489    -0.316   -0.119  
+    ##                                          (0.327)   (0.506)   (0.435)  (0.381)  (0.408)   (0.372) 
+    ##                                                                                                  
+    ## RacePrefer not to answer                 -0.727    -0.643    -0.548    -0.751   -0.096    0.433  
+    ##                                          (0.822)   (1.271)   (1.092)  (0.956)  (1.024)   (0.935) 
+    ##                                                                                                  
+    ## GenderCGSurveyMale                        0.020    -0.211    -0.168    0.001    -0.188   -0.164  
+    ##                                          (0.141)   (0.218)   (0.187)  (0.164)  (0.176)   (0.160) 
+    ##                                                                                                  
+    ## GenderCGSurveyNon-binary / third gender  0.681**  -0.990**    0.283    0.419    0.228    -0.143  
+    ##                                          (0.306)   (0.474)   (0.407)  (0.356)  (0.381)   (0.348) 
+    ##                                                                                                  
+    ## GenderCGSurveyPrefer not to answer        0.871    -1.401    -0.073    0.162    0.415     0.470  
+    ##                                          (0.776)   (1.200)   (1.031)  (0.903)  (0.967)   (0.883) 
+    ##                                                                                                  
+    ## PoliticalAffiliationIndependent          -0.108    -0.054     0.250    0.006    -0.052    0.010  
+    ##                                          (0.173)   (0.268)   (0.230)  (0.202)  (0.216)   (0.197) 
+    ##                                                                                                  
+    ## PoliticalAffiliationOther                -0.309     0.095    -0.299    -0.026   0.072    -0.201  
+    ##                                          (0.251)   (0.388)   (0.333)  (0.292)  (0.313)   (0.286) 
+    ##                                                                                                  
+    ## PoliticalAffiliationPrefer not to say     0.113     0.287     0.166    0.0004   -0.082    0.180  
+    ##                                          (0.206)   (0.319)   (0.274)  (0.240)  (0.257)   (0.235) 
+    ##                                                                                                  
+    ## PoliticalAffiliationRepublican          0.714***   -0.116     0.597    0.120    0.178    -0.145  
+    ##                                          (0.274)   (0.424)   (0.364)  (0.319)  (0.342)   (0.312) 
+    ##                                                                                                  
+    ## PoliticalAffiliationSocialist             0.179    0.800**   -0.282    0.264    0.250    -0.123  
+    ##                                          (0.255)   (0.395)   (0.339)  (0.297)  (0.318)   (0.290) 
+    ##                                                                                                  
+    ## ReligiousAffliationBuddhist               0.263    -0.546    -0.860*   -0.123   -0.320    0.306  
+    ##                                          (0.347)   (0.537)   (0.461)  (0.404)  (0.433)   (0.395) 
+    ##                                                                                                  
+    ## ReligiousAffliationHindu                  0.325    -0.713    -0.122    -0.060   -0.135    0.041  
+    ##                                          (0.292)   (0.452)   (0.388)  (0.340)  (0.364)   (0.332) 
+    ##                                                                                                  
+    ## ReligiousAffliationJewish                 0.089     0.125     0.466   -0.647*   0.379    -0.137  
+    ##                                          (0.316)   (0.488)   (0.419)  (0.367)  (0.393)   (0.359) 
+    ##                                                                                                  
+    ## ReligiousAffliationMuslim                 0.662   -1.424**    0.047    -0.280   -0.145    0.065  
+    ##                                          (0.440)   (0.681)   (0.585)  (0.512)  (0.548)   (0.501) 
+    ##                                                                                                  
+    ## ReligiousAffliationOther Christian:      -0.340   -1.060**   -0.105    -0.136   -0.303    0.053  
+    ##                                          (0.281)   (0.434)   (0.373)  (0.327)  (0.350)   (0.319) 
+    ##                                                                                                  
+    ## ReligiousAffliationOther:                -0.068    -0.943     0.811    0.246    0.892*    0.206  
+    ##                                          (0.401)   (0.620)   (0.532)  (0.466)  (0.499)   (0.456) 
+    ##                                                                                                  
+    ## ReligiousAffliationPrefer not to say      0.174    -0.165    -0.281    0.267    -0.047    0.145  
+    ##                                          (0.219)   (0.339)   (0.291)  (0.255)  (0.273)   (0.249) 
+    ##                                                                                                  
+    ## ReligiousAffliationProtestant             0.111     0.168    0.513*    0.355    -0.460   -0.135  
+    ##                                          (0.233)   (0.360)   (0.309)  (0.271)  (0.290)   (0.265) 
+    ##                                                                                                  
+    ## ReligiousAffliationRoman Catholic        -0.032     0.123   -0.626**   0.023    0.128    -0.310  
+    ##                                          (0.191)   (0.296)   (0.254)  (0.223)  (0.238)   (0.217) 
+    ##                                                                                                  
+    ## AgeBinChild                               0.183     1.482    -1.294    1.865    0.163    -2.238* 
+    ##                                          (1.020)   (1.578)   (1.355)  (1.187)  (1.271)   (1.160) 
+    ##                                                                                                  
+    ## AgeBinMiddleAge                          -0.176     0.120    -0.234   -0.988*   0.976*   -0.825* 
+    ##                                          (0.436)   (0.674)   (0.579)  (0.507)  (0.543)   (0.496) 
+    ##                                                                                                  
+    ## AgeBinStudent                             0.060    -0.374     0.285    0.257    -0.150  -0.638***
+    ##                                          (0.204)   (0.315)   (0.271)  (0.237)  (0.254)   (0.232) 
+    ##                                                                                                  
+    ## ClassLevelGrad/Post-Grad                  0.206     0.281     0.247    0.102    -0.150  -0.586** 
+    ##                                          (0.203)   (0.314)   (0.269)  (0.236)  (0.253)   (0.231) 
+    ##                                                                                                  
+    ## ClassLevelJr/Sr                          -0.091    -0.040     0.070    -0.067   -0.049  -0.336** 
+    ##                                          (0.145)   (0.224)   (0.192)  (0.169)  (0.180)   (0.165) 
+    ##                                                                                                  
+    ## ClassLevelPrefer not to answer            0.087     0.671     0.394   0.804**   0.234    -0.637* 
+    ##                                          (0.286)   (0.443)   (0.380)  (0.333)  (0.357)   (0.326) 
+    ##                                                                                                  
+    ## Constant                                3.343***  5.285***  5.728***  3.580*** 4.342*** 5.753*** 
+    ##                                          (0.268)   (0.414)   (0.355)  (0.311)  (0.333)   (0.304) 
+    ##                                                                                                  
+    ## -------------------------------------------------------------------------------------------------
+    ## Observations                               266       266       266      266      266       266   
+    ## R2                                        0.602     0.549     0.230    0.119    0.078     0.681  
+    ## Adjusted R2                               0.549     0.489     0.128    0.002    -0.044    0.639  
+    ## Residual Std. Error (df = 234)            0.934     1.444     1.240    1.087    1.163     1.062  
+    ## F Statistic (df = 31; 234)              11.395*** 9.187***  2.258***   1.015    0.642   16.120***
     ## =================================================================================================
     ## Note:                                                                 *p<0.1; **p<0.05; ***p<0.01
 
@@ -1067,14 +1205,14 @@ stargazer(mod_dmg, type = "text", title = "Differences in Differences via Regres
 mod_pf = list()
 
 for (i in 1:length(data_list)) {
-  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment +  HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + IncomeIn2020, data = data_list[[i]])
+  mod_pf[[i]] = lm(ResponseQ ~ TreatmentAssignment + HasServedInCG + HasServedInAnyOtherUniformedService + HighestDegreeReceived + EmploymentStatus  + RoleAtBerkeley + YearsAtBerkeley + as.factor(IncomeIn2020), data = data_list[[i]])
 }
 
-stargazer(mod_pf, type = "text", title = "Differences in Differences via Regression (Profession Covariates)")
+stargazer(mod_pf, type = "text", title = "Treatment Effects (Profession Covariates)")
 ```
 
     ## 
-    ## Differences in Differences via Regression (Profession Covariates)
+    ## Treatment Effects (Profession Covariates)
     ## =================================================================================================================
     ##                                                                            Dependent variable:                   
     ##                                                         ---------------------------------------------------------
@@ -1168,6 +1306,11 @@ stargazer(mod_pf, type = "text", title = "Differences in Differences via Regress
     ## =================================================================================================================
     ## Note:                                                                                 *p<0.1; **p<0.05; ***p<0.01
 
+> Note that here, the coefficient with numbers in thousands is referring
+> to the `IncomeIn2020` covariate. For example, a value like `99,999` in
+> the above table refers to the interval `$90,000 - $99,999`. So we are
+> referring to the upper bound income in the coefficient above.
+
 ### Covariate Analysis (Behavioral Variables)
 
 ``` r
@@ -1177,11 +1320,11 @@ for (i in 1:length(data_list)) {
   mod_bhv[[i]] = lm(ResponseQ ~ TreatmentAssignment +  FrequencySocialMediaAccess + FrequencySocialMediaPosting + BookFormatPurchasedMostOften, data = data_list[[i]])
 }
 
-stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regression (Behavioral Covariates)")
+stargazer(mod_bhv, type = "text", title = "Treatment Effects (Behavioral Covariates)")
 ```
 
     ## 
-    ## Differences in Differences via Regression (Behavioral Covariates)
+    ## Treatment Effects (Behavioral Covariates)
     ## ============================================================================================================
     ##                                                                       Dependent variable:                   
     ##                                                    ---------------------------------------------------------
@@ -1235,3 +1378,87 @@ stargazer(mod_bhv, type = "text", title = "Differences in Differences via Regres
     ## F Statistic (df = 12; 266)                         30.474*** 21.318*** 3.976***   0.693    1.412   43.822***
     ## ============================================================================================================
     ## Note:                                                                            *p<0.1; **p<0.05; ***p<0.01
+
+### Placebo Test (Pre and Post Within Subject Response Change)
+
+> In order to test that the audience had not been influenced by the
+> survey itself (in terms of their affinity to judge others’ resumes),
+> we conducted a pre-post placebo test where we asked a related question
+> whose responses should NOT have changed per participant (within
+> subject). The question asked was `"How much do you like your
+> coworkers?"`. This question was posed to the participant `before they
+> started answering` the resume comparison questions and `after they had
+> finished answering` the resume comparison questions. We expect that
+> the participants (on average) should not have had a change in response
+> to this question throughout the survey.
+
+``` r
+getNumericAffinityChange <- function(data) {
+  Change = c()
+  for (i in 1:nrow(data)) {
+    pre = -1000
+    post = 1000
+    
+    # pre survey response
+    if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Dislike a great deal") {
+      pre = 0 
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Dislike somewhat") {
+      pre = 1
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Neither like nor dislike") {
+      pre = 2
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Like somewhat") {
+      pre = 3
+    } else if (!is.na(data[i]$PlaceboPreTestColleagueAffinity) & data[i]$PlaceboPreTestColleagueAffinity == "Like a great deal") {
+      pre = 4
+    }
+    
+    # post survey response
+    if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Dislike a great deal") {
+      post = 0 
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Dislike somewhat") {
+      post = 1
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Neither like nor dislike") {
+      post = 2
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Like somewhat") {
+      post = 3
+    } else if (!is.na(data[i]$PlaceboPostTestColleagueAffinity) & data[i]$PlaceboPostTestColleagueAffinity == "Like a great deal") {
+      post = 4
+    }
+    
+    Change = c(Change, post-pre)
+  }
+  
+  return(data.table(Change))
+}
+
+controlPlaceboTestChange = getNumericAffinityChange(Q_WMBM[TreatmentAssignment == FALSE, ] %>% select(PlaceboPreTestColleagueAffinity, PlaceboPostTestColleagueAffinity))
+
+treatmentlPlaceboTestChange = getNumericAffinityChange(Q_WMBM[TreatmentAssignment == TRUE, ] %>% select(PlaceboPreTestColleagueAffinity, PlaceboPostTestColleagueAffinity))
+```
+
+``` r
+controlPlaceboTestChange[, .(count=.N), by = list(Change)]
+```
+
+    ##    Change count
+    ## 1:      0   130
+    ## 2:      1     7
+    ## 3:     -1     4
+    ## 4:      2     1
+
+``` r
+treatmentlPlaceboTestChange[, .(count=.N), by = list(Change)]
+```
+
+    ##    Change count
+    ## 1:      0   130
+    ## 2:     -1     6
+    ## 3:     -2     1
+    ## 4:   2000     1
+    ## 5:      1     1
+
+> We notice in both treatment and control groups, most values are 0,
+> which means that there was no change in the placebo test response pre
+> and post survey. We notice a very large value when one of the
+> responses were NA. Those can be ignored. From the above, we conclude
+> that the placebo test worked\!
