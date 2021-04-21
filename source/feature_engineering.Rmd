@@ -143,6 +143,10 @@ generateRandomIntNums <- function(n, mean, sd, low=1, high=7) {
   
   return(nums[1:n])
 }
+
+medianWithoutNA<-function(x) {
+   median(x[which(!is.na(x))])
+}
 ```
 
 
@@ -210,7 +214,7 @@ controlBinding <- data.table(
 )
 ```
 
-### Identifying Attrition and Non Compliance
+### Identifying Attrition and Non Compliance + Treatment Assignment
 
 ```{r}
 # treatment and control assignment
@@ -305,6 +309,103 @@ setdiff(responseIDsUnFinishedOnly, responseIDsAttrited)
 
 # Examining the list that qualtrics thinks are attritors, we see in fact they are not attritors, so we'll stick to our definition
 # example: d[ResponseID == "R_1E6Y207cj3ZVUY0"]
+```
+
+### Filter Abnormal Rows
+
+```{r Analyze submission time distributions}
+# filter out rows where we feel the respondent just clicked through the answers
+# if their average answering time is abnormally low, then they were likely not interested in the survey
+# and thus, we can exclude them
+
+# We check the average time people take to evaluate 6 pairs of resumes.
+# FC: first click; LC: last click; PS: page submit; CC: click count
+# Note that according to Qualtrics, page submit time is the time spent (sec) on the page before we submit the question
+# https://www.qualtrics.com/support/survey-platform/survey-module/editing-questions/question-types-guide/advanced/timing/#TimingOptions
+# Thus, we don't have to worry about subtracting "first click" time from "page submit" time to get duration spent on the page
+
+d <- d[, AvgTime := as.double(-1)]
+
+n <- nrow(d)
+
+for (i in 1:n) {
+  
+  if (!is.na(d[i]$TreatmentAssignment) & d[i]$TreatmentAssignment == TRUE) {
+    
+    diff1 = d[i]$TimePS_TreatmentQ1 - d[i]$TimeFC_TreatmentQ1
+    diff2 = d[i]$TimePS_TreatmentQ2 - d[i]$TimeFC_TreatmentQ2
+    diff3 = d[i]$TimePS_TreatmentQ3 - d[i]$TimeFC_TreatmentQ3
+    diff4 = d[i]$TimePS_TreatmentQ4 - d[i]$TimeFC_TreatmentQ4
+    diff5 = d[i]$TimePS_TreatmentQ5 - d[i]$TimeFC_TreatmentQ5
+    diff6 = d[i]$TimePS_TreatmentQ6 - d[i]$TimeFC_TreatmentQ6
+    
+    if (!is.na(diff1) & !is.na(diff2) & !is.na(diff3) & !is.na(diff4) & !is.na(diff5) & !is.na(diff6)) {
+      # diffs must always be positive, as page submit comes after first click
+      if (diff1 < 0 | diff2 < 0 | diff3 < 0 | diff4 < 0 | diff5 < 0 | diff6 < 0) {
+        e = sprintf("At least one diff is less than 0! Error found in row %s", i)
+        stop(e)
+      }      
+    }
+
+    
+    d[i]$AvgTime = (d[i]$TimePS_TreatmentQ1 + d[i]$TimePS_TreatmentQ2 + d[i]$TimePS_TreatmentQ3 + d[i]$TimePS_TreatmentQ4 + d[i]$TimePS_TreatmentQ5 + d[i]$TimePS_TreatmentQ6) / nrow(treatmentMetadata)
+  
+    }
+  
+  
+  else {
+    
+    diff1 = d[i]$TimePS_ControlQ1 - d[i]$TimeFC_ControlQ1
+    diff2 = d[i]$TimePS_ControlQ2 - d[i]$TimeFC_ControlQ2
+    diff3 = d[i]$TimePS_ControlQ3 - d[i]$TimeFC_ControlQ3
+    diff4 = d[i]$TimePS_ControlQ4 - d[i]$TimeFC_ControlQ4
+    diff5 = d[i]$TimePS_ControlQ5 - d[i]$TimeFC_ControlQ5
+    diff6 = d[i]$TimePS_ControlQ6 - d[i]$TimeFC_ControlQ6
+    
+    if (!is.na(diff1) & !is.na(diff2) & !is.na(diff3) & !is.na(diff4) & !is.na(diff5) & !is.na(diff6)) {
+      # diffs must always be positive, as page submit comes after first click
+      if (diff1 < 0 | diff2 < 0 | diff3 < 0 | diff4 < 0 | diff5 < 0 | diff6 < 0) {
+        e = sprintf("At least one diff is less than 0! Error found in row %s", i)
+        stop(e)
+      }      
+    }
+    
+    d[i]$AvgTime = (d[i]$TimePS_ControlQ1 + d[i]$TimePS_ControlQ2 + d[i]$TimePS_ControlQ3 + d[i]$TimePS_ControlQ4 + d[i]$TimePS_ControlQ5 + d[i]$TimePS_ControlQ6) / nrow(treatmentMetadata)
+  
+    }
+}
+
+hist(d[TreatmentAssignment == FALSE]$AvgTime, 
+     breaks = 100, 
+     main = 'Histogram for averge answering time for control group questions', 
+     xlab='Averge answering time')
+
+hist(d[TreatmentAssignment == TRUE]$AvgTime, 
+     breaks = 100, 
+     main = 'Histogram for averge answering time for treatment group questions', 
+     xlab='Averge answering time')
+
+print('Median of averge answering time for control group questions')
+medianWithoutNA(d[TreatmentAssignment == FALSE]$AvgTime)
+
+print('Median of averge answering time for treatment group questions')
+medianWithoutNA(d[TreatmentAssignment == TRUE]$AvgTime)
+```
+
+```{r Filter rows with low page submission time}
+# If answering time is relatively short (< 10 sec), we remove the record
+nrow(d)
+d <- d[AvgTime >= 10]
+nrow(d)
+```
+
+```{r Filter abnormal birth year rows}
+# There are outliers such as 25 and 2020, as well as abnormal values such as country names. So we remove those rows
+d <- d[, YearOfBirth:=as.integer(YearOfBirth)]
+
+nrow(d)
+d <- d[YearOfBirth < 2015 & YearOfBirth > 1950]
+nrow(d)
 ```
 
 ## Create Datasets Per Question
@@ -560,7 +661,7 @@ dataset$Age = as.integer(format(Sys.Date(), "%Y")) - dataset$YearOfBirth
 dataset$AgeBin = "NA"
 
 # TODO: clean up - probably a better way to implement this
-AssignAgeBin <- function(dt) {
+assignAgeBin <- function(dt) {
   
   for (i in 1:nrow(dt)) {
     
@@ -568,7 +669,10 @@ AssignAgeBin <- function(dt) {
           if (!is.na(dt[i]$Age) & is.numeric(dt[i]$Age) & dt[i]$Age > 0 & (floor(log10(dt[i]$YearOfBirth)) + 1) == 4) {
               # valid age, assign to category
               # we will keep things simple and have 0-12, 12-25, 25-40, 40-60, 60+
-              if (dt[i]$Age <= 12) {
+              # for age under 6, we assume that the age is invalid and need to be removed later
+              if (dt[i]$Age <= 6) {
+                dt[i]$AgeBin = NA
+              } else if (dt[i]$Age <= 12) {
                 dt[i]$AgeBin = "Child"
               } else if (dt[i]$Age <= 25) {
                 dt[i]$AgeBin = "Student"
@@ -594,6 +698,6 @@ AssignAgeBin <- function(dt) {
 }
 
 
-dataset = AssignAgeBin(dataset)
+dataset = assignAgeBin(dataset)
 ```
 
